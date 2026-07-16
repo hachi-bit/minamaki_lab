@@ -1,15 +1,16 @@
 {
-  "totalResponses": 2,
+  "totalResponses": 3,
   "monthlyVisitCounts": {
-    "2026-07": 2
+    "2026-07": 3
   },
   "revisitCounts": {
     "機会があれば": 1,
-    "はい、ぜひ！": 1
+    "はい、ぜひ！": 2
   },
   "goodPointCounts": {
     "他の会員さんと交流できた": 1,
-    "静かに作業・勉強ができた": 1
+    "静かに作業・勉強ができた": 1,
+    "その他": 1
   },
-  "lastUpdated": "2026-07-16T06:15:33.014Z"
+  "lastUpdated": "2026-07-16T06:16:31.361Z"
 }
