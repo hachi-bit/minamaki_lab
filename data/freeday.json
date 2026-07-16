@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-16T09:18:11.503Z",
+  "lastUpdated": "2026-07-16T09:19:00.389Z",
   "responses": [
     {
       "id": "r_backfill_1",
@@ -9,6 +9,16 @@
       "revisit": "はい、ぜひ！",
       "goodPoints": [
         "他の会員さんと交流できた",
+        "静かに作業・勉強ができた"
+      ]
+    },
+    {
+      "id": "r_2e333f1d",
+      "timestamp": "2026-07-16T09:18:59.992Z",
+      "date": "2026-07-15",
+      "visitorId": "v_9a04be793zo",
+      "revisit": "機会があれば",
+      "goodPoints": [
         "静かに作業・勉強ができた"
       ]
     }
