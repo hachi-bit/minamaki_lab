@@ -53,10 +53,11 @@
   #ticker b{color:var(--accent);font-weight:600;}
 
   #legend{
-    position:fixed;left:16px;bottom:84px;display:flex;flex-direction:column;gap:6px;
+    position:fixed;left:16px;bottom:84px;display:none;flex-direction:column;gap:6px;
     background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 12px;
-    font-size:11px;color:var(--sub);backdrop-filter:blur(6px);z-index:10;max-width:190px;
+    font-size:11px;color:var(--sub);backdrop-filter:blur(6px);z-index:20;max-width:220px;
   }
+  #legend.open{display:flex;}
   #legend .row{display:flex;align-items:center;gap:6px;}
   #legend .dot{width:9px;height:9px;border-radius:50%;flex:none;}
   #legend .cap{color:var(--ink);font-size:11px;margin-top:2px;}
@@ -87,12 +88,22 @@
   #surveyBtn:disabled{opacity:0.4;pointer-events:none;}
 
   @media (max-width:520px){
-    #legend{display:none;}
+    #legend{max-width:78vw;}
     .stat{min-width:52px;padding:6px 9px;}
     .stat b{font-size:15px;}
     #titleBox h1{font-size:14px;}
     #ticker{top:58px;}
   }
+
+  #infoCard{
+    position:fixed;left:50%;bottom:78px;transform:translateX(-50%) translateY(10px);
+    max-width:min(320px,84vw);background:var(--panel);border:1px solid rgba(255,209,102,0.5);
+    border-radius:14px;padding:12px 16px;font-size:12.5px;line-height:1.6;backdrop-filter:blur(6px);
+    opacity:0;pointer-events:none;transition:all .35s ease;z-index:15;
+  }
+  #infoCard.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  #infoCard .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10.5px;margin:2px 4px 0 0;color:#0a0d16;font-weight:700;}
+  #infoCard .mine{color:var(--accent);font-weight:700;}
 </style>
 </head>
 <body>
@@ -115,6 +126,7 @@
 <div id="welcome"></div>
 
 <div id="legend">
+  <div class="cap">👆 建物をタップすると詳細が見れるで</div>
   <div class="cap">よかった点</div>
   <div class="row"><span class="dot" style="background:#ff6fae"></span>他の会員さんと交流</div>
   <div class="row"><span class="dot" style="background:#62c3ff"></span>静かに作業・勉強</div>
@@ -127,8 +139,11 @@
 </div>
 
 <div id="controls">
+  <button class="iconBtn" id="infoBtn" title="見方">❔</button>
   <button class="iconBtn active" id="rotateBtn" title="自動回転">⟳</button>
 </div>
+
+<div id="infoCard"></div>
 
 <button id="surveyBtn" disabled>📝 アンケートに答える</button>
 
@@ -238,7 +253,8 @@ const SAMPLE_FALLBACK = {
 
 async function loadData() {
   try {
-    const res = await fetch(CONFIG.dataUrl, { cache: "no-store" });
+    const cacheBust = `${CONFIG.dataUrl}${CONFIG.dataUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
+    const res = await fetch(cacheBust, { cache: "no-store" });
     if (!res.ok) throw new Error("fetch failed");
     const json = await res.json();
     if (!json.responses || !json.responses.length) throw new Error("empty");
@@ -345,10 +361,14 @@ const cityGroup = new THREE.Group();
 scene.add(cityGroup);
 const DAY_SPACING = 9;
 const fireflies = [];
+const pickables = [];
+const pulsingRings = [];
 
 function buildCity(data) {
   while (cityGroup.children.length) cityGroup.remove(cityGroup.children[0]);
   fireflies.length = 0;
+  pickables.length = 0;
+  pulsingRings.length = 0;
 
   const responses = data.responses.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
 
@@ -403,7 +423,9 @@ function buildCity(data) {
         });
         const building = new THREE.Mesh(new THREE.BoxGeometry(0.5, h, 0.5), mat);
         building.position.set(x, h / 2, z);
+        building.userData = { date, goodPoint: pt, revisit: r.revisit, isMine };
         cityGroup.add(building);
+        pickables.push(building);
       });
 
       if (tier.glow) {
@@ -425,12 +447,18 @@ function buildCity(data) {
 
       if (isMine) {
         const ring = new THREE.Mesh(
-          new THREE.TorusGeometry(0.62, 0.045, 8, 24),
-          new THREE.MeshBasicMaterial({ color: 0xffd166 })
+          new THREE.TorusGeometry(0.75, 0.06, 8, 24),
+          new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true })
         );
         ring.rotation.x = Math.PI / 2;
-        ring.position.set(anchorX, 0.05, anchorZ);
+        ring.position.set(anchorX, 0.1, anchorZ);
+        ring.userData.pulse = true;
         cityGroup.add(ring);
+        pulsingRings.push(ring);
+
+        const tag = makeLabel("★ あなたの建物", { color: "#ffd166", size: 34 });
+        tag.position.set(anchorX, tier.height + 1.1, anchorZ);
+        cityGroup.add(tag);
       }
 
       if (!visitorPoints.has(r.visitorId)) visitorPoints.set(r.visitorId, []);
@@ -512,6 +540,11 @@ loadData().then((data) => {
   setTimeout(() => (document.getElementById("loading").style.display = "none"), 500);
 });
 
+document.getElementById("infoBtn").addEventListener("click", (e) => {
+  document.getElementById("legend").classList.toggle("open");
+  e.currentTarget.classList.toggle("active");
+});
+
 document.getElementById("rotateBtn").addEventListener("click", (e) => {
   controls.autoRotate = !controls.autoRotate;
   e.currentTarget.classList.toggle("active", controls.autoRotate);
@@ -523,6 +556,55 @@ addEventListener("resize", () => {
   renderer.setSize(innerWidth, innerHeight);
   composer.setSize(innerWidth, innerHeight);
 });
+
+/* ============================================================
+   建物タップで詳細カードを表示（ドラッグ操作と区別するため
+   「動いた距離が小さい・短時間」だけをタップとみなす）
+   ============================================================ */
+const raycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+const infoCard = document.getElementById("infoCard");
+let pointerDownAt = null;
+let pointerDownPos = null;
+let infoHideTimer = null;
+
+function showInfoCard(hit) {
+  const d = hit.userData;
+  const mineTag = d.isMine ? `<div class="mine">★ これはあなたの建物やで</div>` : "";
+  infoCard.innerHTML = `
+    <div><b>${d.date.slice(5).replace("-", "/")}</b> の来場記録</div>
+    <span class="tag" style="background:#ffd166">${d.revisit || "―"}</span>
+    <span class="tag" style="background:#62c3ff">${d.goodPoint || "―"}</span>
+    ${mineTag}
+  `;
+  infoCard.classList.add("show");
+  clearTimeout(infoHideTimer);
+  infoHideTimer = setTimeout(() => infoCard.classList.remove("show"), 5000);
+}
+
+function onPointerDown(ev) {
+  const p = ev.touches ? ev.touches[0] : ev;
+  pointerDownAt = performance.now();
+  pointerDownPos = { x: p.clientX, y: p.clientY };
+}
+function onPointerUp(ev) {
+  if (!pointerDownAt) return;
+  const p = ev.changedTouches ? ev.changedTouches[0] : ev;
+  const dt = performance.now() - pointerDownAt;
+  const dx = p.clientX - pointerDownPos.x;
+  const dy = p.clientY - pointerDownPos.y;
+  const moved = Math.hypot(dx, dy);
+  pointerDownAt = null;
+  if (dt > 350 || moved > 8) return; // ドラッグ操作とみなして無視
+
+  pointerNDC.x = (p.clientX / innerWidth) * 2 - 1;
+  pointerNDC.y = -(p.clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointerNDC, camera);
+  const hits = raycaster.intersectObjects(pickables, false);
+  if (hits.length) showInfoCard(hits[0].object);
+}
+renderer.domElement.addEventListener("pointerdown", onPointerDown);
+renderer.domElement.addEventListener("pointerup", onPointerUp);
 
 const clock = new THREE.Clock();
 function animate() {
@@ -540,6 +622,12 @@ function animate() {
     const frac = idx - i0;
     f.position.lerpVectors(path[i0], path[i1], frac);
     f.position.y += Math.sin(t * 3 + i0) * 0.15;
+  });
+
+  pulsingRings.forEach((r) => {
+    r.material.opacity = 0.55 + Math.sin(t * 2.4) * 0.45;
+    const s = 1 + Math.sin(t * 2.4) * 0.06;
+    r.scale.set(s, 1, s);
   });
 
   controls.update();
