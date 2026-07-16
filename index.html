@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>にぎわう街 | Freeday City</title>
+<style>
+  :root{
+    --ink:#eaf2ff;
+    --sub:#9db3d6;
+    --accent:#ffd166;
+    --bg:#04060f;
+    --panel:rgba(8,12,26,0.72);
+    --border:rgba(255,255,255,0.08);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);overflow:hidden;
+    font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",system-ui,sans-serif;color:var(--ink);}
+  canvas{display:block;touch-action:none;}
+
+  #loading{
+    position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:10px;background:var(--bg);z-index:50;transition:opacity .5s;
+  }
+  #loading .spin{width:34px;height:34px;border-radius:50%;border:3px solid #223;border-top-color:var(--accent);
+    animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #loading p{color:var(--sub);font-size:13px;}
+
+  #hud{
+    position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;
+    padding:14px 16px;pointer-events:none;z-index:10;
+  }
+  #titleBox h1{font-size:16px;margin:0 0 2px;letter-spacing:.04em;font-weight:600;}
+  #titleBox span{font-size:11px;color:var(--sub);}
+
+  #stats{display:flex;gap:8px;pointer-events:auto;}
+  .stat{
+    background:var(--panel);border:1px solid var(--border);backdrop-filter:blur(6px);
+    border-radius:12px;padding:8px 12px;text-align:center;min-width:64px;
+  }
+  .stat b{display:block;font-size:18px;line-height:1.1;color:var(--accent);}
+  .stat small{font-size:10px;color:var(--sub);}
+
+  #ticker{
+    position:fixed;top:64px;left:50%;transform:translateX(-50%);
+    max-width:min(560px,86vw);text-align:center;font-size:12.5px;color:var(--ink);
+    background:var(--panel);border:1px solid var(--border);border-radius:999px;
+    padding:8px 18px;backdrop-filter:blur(6px);opacity:0;transition:opacity .8s;z-index:10;
+    pointer-events:none;
+  }
+  #ticker.show{opacity:1;}
+  #ticker b{color:var(--accent);font-weight:600;}
+
+  #legend{
+    position:fixed;left:16px;bottom:84px;display:flex;flex-direction:column;gap:6px;
+    background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 12px;
+    font-size:11px;color:var(--sub);backdrop-filter:blur(6px);z-index:10;max-width:190px;
+  }
+  #legend .row{display:flex;align-items:center;gap:6px;}
+  #legend .dot{width:9px;height:9px;border-radius:50%;flex:none;}
+  #legend .cap{color:var(--ink);font-size:11px;margin-top:2px;}
+
+  #welcome{
+    position:fixed;top:110px;left:50%;transform:translateX(-50%) translateY(-12px);
+    background:linear-gradient(135deg,rgba(255,209,102,0.16),rgba(255,209,102,0.04));
+    border:1px solid rgba(255,209,102,0.4);border-radius:14px;padding:10px 18px;
+    font-size:12.5px;text-align:center;opacity:0;pointer-events:none;transition:all .6s ease;z-index:10;
+  }
+  #welcome.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  #controls{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:10;}
+  .iconBtn{
+    width:42px;height:42px;border-radius:50%;background:var(--panel);border:1px solid var(--border);
+    color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;
+    backdrop-filter:blur(6px);
+  }
+  .iconBtn.active{border-color:var(--accent);color:var(--accent);}
+
+  #surveyBtn{
+    position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+    background:linear-gradient(135deg,#ffd166,#ff8fab);color:#1a1206;border:none;
+    padding:13px 26px;border-radius:999px;font-size:14px;font-weight:700;letter-spacing:.02em;
+    box-shadow:0 8px 24px rgba(255,143,171,0.35);cursor:pointer;z-index:10;
+  }
+  #surveyBtn:active{transform:translateX(-50%) scale(0.96);}
+  #surveyBtn:disabled{opacity:0.4;pointer-events:none;}
+
+  @media (max-width:520px){
+    #legend{display:none;}
+    .stat{min-width:52px;padding:6px 9px;}
+    .stat b{font-size:15px;}
+    #titleBox h1{font-size:14px;}
+    #ticker{top:58px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spin"></div><p>街をつくっています…</p></div>
+
+<div id="hud">
+  <div id="titleBox">
+    <h1>にぎわう街 ―フリーデイ・シティ―</h1>
+    <span>みんなのアンケートが、街の灯りになる</span>
+  </div>
+  <div id="stats">
+    <div class="stat"><b id="statTotal">0</b><small>総来場</small></div>
+    <div class="stat"><b id="statToday">0</b><small>本日</small></div>
+    <div class="stat"><b id="statVisitors">0</b><small>常連さん</small></div>
+  </div>
+</div>
+
+<div id="ticker"></div>
+<div id="welcome"></div>
+
+<div id="legend">
+  <div class="cap">よかった点</div>
+  <div class="row"><span class="dot" style="background:#ff6fae"></span>他の会員さんと交流</div>
+  <div class="row"><span class="dot" style="background:#62c3ff"></span>静かに作業・勉強</div>
+  <div class="row"><span class="dot" style="background:#ffb86b"></span>飲食しながらのんびり</div>
+  <div class="row"><span class="dot" style="background:#c39bff"></span>子どもと一緒に</div>
+  <div class="row"><span class="dot" style="background:#9be564"></span>その他</div>
+  <div class="cap">その他</div>
+  <div class="row"><span class="dot" style="background:#ffd166"></span>✦「また来たい」の輝き</div>
+  <div class="row"><span class="dot" style="background:#ffffff;border:2px solid #ffd166"></span>あなたの建物</div>
+</div>
+
+<div id="controls">
+  <button class="iconBtn active" id="rotateBtn" title="自動回転">⟳</button>
+</div>
+
+<button id="surveyBtn" disabled>📝 アンケートに答える</button>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+
+/* ============================================================
+   CONFIG ―― 自分の環境に合わせてここだけ書き換えればOK
+   ============================================================ */
+const CONFIG = {
+  dataUrl: "./data/freeday.json",
+
+  // 「フォームに事前入力する」で作ったURLのうち、?usp=pp_url より前の部分
+  formBaseUrl: "https://docs.google.com/forms/d/e/1FAIpQLSev-gZlTOuQqgV_UOyTMFaqkhn-OWW3OiEsVxzP7OJypWE8hw/viewform",
+
+  // 「来場者ID」欄のentry番号
+  formVisitorIdEntry: "entry.1116716516",
+
+  autoRotate: true,
+};
+
+// 「また参加したいと思いますか？」の回答ごとの高さ・輝きの設定
+const REVISIT_TIERS = {
+  "はい、ぜひ！":   { height: 4.4, glow: true  },
+  "機会があれば":    { height: 3.0, glow: false },
+  "わからない":      { height: 2.0, glow: false },
+  "あまり…":         { height: 1.2, glow: false },
+};
+function tierFor(revisit) {
+  return REVISIT_TIERS[revisit] || { height: 2.2, glow: false };
+}
+
+// 「よかった点」ごとの色
+const GOOD_POINT_COLORS = {
+  "他の会員さんと交流できた": 0xff6fae,
+  "静かに作業・勉強ができた": 0x62c3ff,
+  "飲食しながらのんびりできた": 0xffb86b,
+  "子どもと一緒に過ごせた": 0xc39bff,
+  "特になし": 0x6b7690,
+  "その他": 0x9be564,
+};
+function colorForCategory(cat) {
+  if (GOOD_POINT_COLORS[cat]) return GOOD_POINT_COLORS[cat];
+  let h = 0;
+  for (const c of String(cat)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return new THREE.Color(`hsl(${h % 360},70%,60%)`).getHex();
+}
+function hueForVisitor(id) {
+  let h = 0;
+  for (const c of String(id)) h = (h * 33 + c.charCodeAt(0)) >>> 0;
+  return h % 360;
+}
+
+/* ============================================================
+   来場者ID（localStorage・ログイン不要の緩い識別）
+   ・すでに端末にIDがあれば、それをそのまま使う（＝自分の過去の投稿と一致するのは正常）
+   ・端末に無い＝新規発行のときだけ、freeday.json内の既存IDと被っていないか確認する
+   ============================================================ */
+const VISITOR_KEY = "freeday_visitor_id";
+function getOrCreateVisitorId(knownIds) {
+  const existing = localStorage.getItem(VISITOR_KEY);
+  if (existing) return existing;
+
+  let id, tries = 0;
+  do {
+    id = "v_" + Math.random().toString(16).slice(2, 10) + Date.now().toString(36).slice(-3);
+    tries++;
+  } while (knownIds.has(id) && tries < 8);
+
+  localStorage.setItem(VISITOR_KEY, id);
+  return id;
+}
+let MY_VISITOR_ID = null;
+
+const surveyBtn = document.getElementById("surveyBtn");
+surveyBtn.addEventListener("click", () => {
+  if (!MY_VISITOR_ID) return;
+  const url = `${CONFIG.formBaseUrl}?usp=pp_url&${CONFIG.formVisitorIdEntry}=${encodeURIComponent(MY_VISITOR_ID)}`;
+  window.open(url, "_blank");
+});
+
+/* ============================================================
+   データ取得
+   ・お名前／ご要望欄は、プライバシー配慮のため freeday.json には含めない設計
+   ============================================================ */
+const SAMPLE_FALLBACK = {
+  lastUpdated: new Date().toISOString(),
+  responses: [
+    { id:"demo1", date:"2026-07-10", visitorId:"v_demo1", revisit:"はい、ぜひ！", goodPoints:["静かに作業・勉強ができた"], comment:"静かで集中できました" },
+    { id:"demo2", date:"2026-07-16", visitorId:"v_demo1", revisit:"はい、ぜひ！", goodPoints:["他の会員さんと交流できた","飲食しながらのんびりできた"], comment:"また来ました！" },
+    { id:"demo3", date:"2026-07-16", visitorId:"v_demo2", revisit:"機会があれば", goodPoints:["その他"], comment:"" },
+  ],
+};
+
+async function loadData() {
+  try {
+    const res = await fetch(CONFIG.dataUrl, { cache: "no-store" });
+    if (!res.ok) throw new Error("fetch failed");
+    const json = await res.json();
+    if (!json.responses || !json.responses.length) throw new Error("empty");
+    json.responses.forEach((r) => { if (!Array.isArray(r.goodPoints)) r.goodPoints = r.goodPoints ? [r.goodPoints] : ["特になし"]; });
+    return json;
+  } catch (e) {
+    console.warn("freeday.json が読めなかったのでサンプルデータを表示するのら:", e.message);
+    return SAMPLE_FALLBACK;
+  }
+}
+
+/* ============================================================
+   テキストスプライト
+   ============================================================ */
+function makeLabel(text, { size = 42, color = "#eaf2ff" } = {}) {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  const pad = 10;
+  ctx.font = `${size}px "Hiragino Sans","Noto Sans JP",sans-serif`;
+  const w = ctx.measureText(text).width + pad * 2;
+  canvas.width = w;
+  canvas.height = size + pad * 2;
+  ctx.font = `${size}px "Hiragino Sans","Noto Sans JP",sans-serif`;
+  ctx.fillStyle = color;
+  ctx.textBaseline = "top";
+  ctx.fillText(text, pad, pad);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  const scale = 0.014;
+  sprite.scale.set(canvas.width * scale, canvas.height * scale, 1);
+  return sprite;
+}
+
+/* ============================================================
+   シーン構築
+   ============================================================ */
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x050914, 0.017);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 400);
+camera.position.set(18, 16, 26);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.autoRotate = CONFIG.autoRotate;
+controls.autoRotateSpeed = 0.55;
+controls.minDistance = 6;
+controls.maxDistance = 80;
+controls.maxPolarAngle = Math.PI * 0.49;
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.05, 0.55, 0.16);
+composer.addPass(bloom);
+
+{
+  const geo = new THREE.BufferGeometry();
+  const N = 1200;
+  const pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const r = 90 + Math.random() * 120;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.random() * Math.PI * 0.5;
+    pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    pos[i * 3 + 1] = Math.abs(r * Math.cos(phi)) + 10;
+    pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+  }
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({ color: 0x9fb8ff, size: 0.5, transparent: true, opacity: 0.6 });
+  scene.add(new THREE.Points(geo, mat));
+}
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(400, 400),
+  new THREE.MeshStandardMaterial({ color: 0x070b18, roughness: 1 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.01;
+scene.add(ground);
+
+const grid = new THREE.GridHelper(400, 80, 0x223458, 0x111a30);
+scene.add(grid);
+
+scene.add(new THREE.AmbientLight(0x223355, 0.9));
+const moon = new THREE.DirectionalLight(0x6f8fff, 0.5);
+moon.position.set(-20, 30, -10);
+scene.add(moon);
+
+/* ============================================================
+   街をデータから組み立てる
+   ============================================================ */
+const cityGroup = new THREE.Group();
+scene.add(cityGroup);
+const DAY_SPACING = 9;
+const fireflies = [];
+
+function buildCity(data) {
+  while (cityGroup.children.length) cityGroup.remove(cityGroup.children[0]);
+  fireflies.length = 0;
+
+  const responses = data.responses.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+
+  const byDate = new Map();
+  for (const r of responses) {
+    if (!byDate.has(r.date)) byDate.set(r.date, []);
+    byDate.get(r.date).push(r);
+  }
+  const dates = [...byDate.keys()].sort();
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const visitorPoints = new Map();
+
+  dates.forEach((date, di) => {
+    const dayResponses = byDate.get(date);
+    const baseX = di * DAY_SPACING - ((dates.length - 1) * DAY_SPACING) / 2;
+    const platformR = Math.max(1.8, 1.15 * Math.sqrt(dayResponses.length) + 1.1);
+
+    const platform = new THREE.Mesh(
+      new THREE.CylinderGeometry(platformR, platformR * 1.05, 0.25, 24),
+      new THREE.MeshStandardMaterial({
+        color: date === todayStr ? 0x2a2440 : 0x121a30,
+        emissive: date === todayStr ? 0x332a10 : 0x000000,
+        roughness: 0.85,
+      })
+    );
+    platform.position.set(baseX, 0.12, 0);
+    cityGroup.add(platform);
+
+    const label = makeLabel(date.slice(5).replace("-", "/"), { color: date === todayStr ? "#ffd166" : "#9db3d6" });
+    label.position.set(baseX, 0.9, platformR + 1.1);
+    cityGroup.add(label);
+
+    dayResponses.forEach((r, i) => {
+      const angle = i * 2.399963;
+      const rad = 1.15 * Math.sqrt(i + 0.6);
+      const anchorX = baseX + Math.cos(angle) * rad;
+      const anchorZ = Math.sin(angle) * rad;
+      const tier = tierFor(r.revisit);
+      const points = r.goodPoints && r.goodPoints.length ? r.goodPoints : ["特になし"];
+      const isMine = r.visitorId === MY_VISITOR_ID;
+
+      points.slice(0, 5).forEach((pt, j) => {
+        const bAngle = (j / points.length) * Math.PI * 2 + i;
+        const bRad = points.length > 1 ? 0.34 : 0;
+        const x = anchorX + Math.cos(bAngle) * bRad;
+        const z = anchorZ + Math.sin(bAngle) * bRad;
+        const h = tier.height * (0.85 + Math.random() * 0.25);
+        const color = colorForCategory(pt);
+
+        const mat = new THREE.MeshStandardMaterial({
+          color, emissive: color, emissiveIntensity: 0.55, roughness: 0.4, metalness: 0.15,
+        });
+        const building = new THREE.Mesh(new THREE.BoxGeometry(0.5, h, 0.5), mat);
+        building.position.set(x, h / 2, z);
+        cityGroup.add(building);
+      });
+
+      if (tier.glow) {
+        const sparkGeo = new THREE.BufferGeometry();
+        const n = 14;
+        const p = new Float32Array(n * 3);
+        for (let s = 0; s < n; s++) {
+          p[s * 3] = anchorX + (Math.random() - 0.5) * 0.7;
+          p[s * 3 + 1] = tier.height + 0.4 + Math.random() * 0.8;
+          p[s * 3 + 2] = anchorZ + (Math.random() - 0.5) * 0.7;
+        }
+        sparkGeo.setAttribute("position", new THREE.BufferAttribute(p, 3));
+        const sparkMat = new THREE.PointsMaterial({
+          color: 0xffd166, size: 0.12, transparent: true, opacity: 0.9,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        cityGroup.add(new THREE.Points(sparkGeo, sparkMat));
+      }
+
+      if (isMine) {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(0.62, 0.045, 8, 24),
+          new THREE.MeshBasicMaterial({ color: 0xffd166 })
+        );
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(anchorX, 0.05, anchorZ);
+        cityGroup.add(ring);
+      }
+
+      if (!visitorPoints.has(r.visitorId)) visitorPoints.set(r.visitorId, []);
+      visitorPoints.get(r.visitorId).push(new THREE.Vector3(anchorX, tier.height + 0.4, anchorZ));
+    });
+  });
+
+  let regularsCount = 0;
+  for (const [vid, pts] of visitorPoints) {
+    if (pts.length < 2) continue;
+    regularsCount++;
+    const hue = hueForVisitor(vid);
+    const color = new THREE.Color(`hsl(${hue},80%,65%)`);
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const tubeGeo = new THREE.TubeGeometry(curve, Math.max(8, pts.length * 6), 0.03, 6, false);
+    const tubeMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.65 });
+    cityGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
+
+    const firefly = new THREE.Mesh(
+      new THREE.SphereGeometry(0.11, 12, 12),
+      new THREE.MeshBasicMaterial({ color })
+    );
+    firefly.userData.path = pts;
+    firefly.userData.t = Math.random();
+    fireflies.push(firefly);
+    cityGroup.add(firefly);
+
+    if (vid === MY_VISITOR_ID) {
+      showWelcome(`ようこそ、${pts.length}回目の来訪やで！おおきに！`);
+    }
+  }
+
+  const totalWidth = dates.length * DAY_SPACING;
+  controls.target.set(0, 1.2, 0);
+  camera.position.set(Math.min(30, 10 + totalWidth * 0.28), 14 + Math.min(10, dates.length), Math.min(36, 14 + totalWidth * 0.3));
+
+  document.getElementById("statTotal").textContent = responses.length;
+  document.getElementById("statToday").textContent = (byDate.get(todayStr) || []).length;
+  document.getElementById("statVisitors").textContent = regularsCount;
+
+  startTicker(responses.map((r) => r.comment).filter((c) => c && c.trim()));
+}
+
+function showWelcome(text) {
+  const el = document.getElementById("welcome");
+  el.textContent = text;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 4500);
+}
+
+/* ============================================================
+   みんなの声チッカー（公開OKにした「感想」だけを回す）
+   ============================================================ */
+let tickerTimer = null;
+function startTicker(comments) {
+  const el = document.getElementById("ticker");
+  if (tickerTimer) clearInterval(tickerTimer);
+  if (!comments.length) { el.classList.remove("show"); return; }
+  let i = 0;
+  const show = () => {
+    el.innerHTML = `<b>“</b> ${comments[i % comments.length]} <b>”</b>`;
+    el.classList.add("show");
+    i++;
+  };
+  show();
+  tickerTimer = setInterval(show, 5500);
+}
+
+/* ============================================================
+   起動
+   ============================================================ */
+loadData().then((data) => {
+  const knownIds = new Set(data.responses.map((r) => r.visitorId));
+  MY_VISITOR_ID = getOrCreateVisitorId(knownIds);
+  surveyBtn.disabled = false;
+
+  buildCity(data);
+  document.getElementById("loading").style.opacity = "0";
+  setTimeout(() => (document.getElementById("loading").style.display = "none"), 500);
+});
+
+document.getElementById("rotateBtn").addEventListener("click", (e) => {
+  controls.autoRotate = !controls.autoRotate;
+  e.currentTarget.classList.toggle("active", controls.autoRotate);
+});
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+});
+
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+
+  fireflies.forEach((f) => {
+    const path = f.userData.path;
+    if (path.length < 2) return;
+    f.userData.t += 0.15 * 0.016;
+    const tt = f.userData.t % 1;
+    const idx = tt * (path.length - 1);
+    const i0 = Math.floor(idx);
+    const i1 = Math.min(i0 + 1, path.length - 1);
+    const frac = idx - i0;
+    f.position.lerpVectors(path[i0], path[i1], frac);
+    f.position.y += Math.sin(t * 3 + i0) * 0.15;
+  });
+
+  controls.update();
+  composer.render();
+}
+animate();
+</script>
+</body>
+</html>
