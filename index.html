@@ -89,6 +89,11 @@
     border:1px solid #4ade80; color:#4ade80; padding:8px 16px; border-radius:8px; font-size:12px; z-index:20; display:none; }
   #plantHint.show{ display:block; }
 
+  #camPanel{ position:fixed; right:16px; bottom:200px; width:min(260px,80vw); background:var(--panel);
+    border:1px solid var(--border); border-radius:12px; padding:10px 12px; backdrop-filter:blur(6px);
+    z-index:20; display:none; }
+  #camPanel.show{ display:block; }
+
   @media (max-width:520px){
     #legend{ max-width:78vw; }
     .stat{ min-width:48px; padding:6px 9px; }
@@ -135,6 +140,13 @@
   <button class="iconBtn" id="infoBtn" title="見方">❔</button>
   <button class="iconBtn" id="tourBtn" title="ゆっくり見渡す">🔄</button>
   <button class="iconBtn" id="homeBtn" title="初期位置">🏠</button>
+  <button class="iconBtn" id="camPanelToggleBtn" title="カメラ座標を調べる">📷</button>
+</div>
+
+<div id="camPanel">
+  <div style="font-size:11px;color:var(--sub);margin-bottom:4px;">📷 現在のカメラ座標</div>
+  <div id="camPanelBody" style="font-family:monospace;font-size:11px;word-break:break-all;line-height:1.5;"></div>
+  <button class="sheetBtn primary" id="camPanelCopyBtn" style="margin-top:8px;width:100%;">📋 この視点をコピー</button>
 </div>
 
 <div id="ctaBar">
@@ -169,10 +181,12 @@ const PLATEAU_ION_TOKEN =
 const TERRAIN_ASSET_ID = 2488101;
 
 // テスト用の初期カメラ（本番の施設位置が決まったらここを書き換える）
-// 「見たい地点（施設そのものの場所）」と「そこをどう見るか」を分けて指定する。
-// カメラの実際の立ち位置(eye)は、これらから起動時に逆算する（INITIAL_CAMERAとして下で確定する）。
-const FACILITY_TARGET = { lon: 139.525589, lat: 35.451371, height: 0 }; // みなまきラボ（実際の位置）
-const VIEW_ANGLE = { heading: 24.10, pitch: -52, range: 260 }; // range=施設からカメラまでの距離(m)
+// カメラ自身の位置・向き（直接指定。実機で確認しながら手で調整する。下の📷カメラ情報パネルで
+// 好きなアングルを探して「コピー」すれば、この行にそのまま貼り替えられる）
+const INITIAL_CAMERA = { lon: 139.525589, lat: 35.451371, height: 260, heading: 24.10, pitch: -52, roll: 0.00 };
+
+// 「植える場所を選ぶ」のデフォルト中心地点（施設の実際の場所。カメラの向きとは無関係の、独立した値）
+const PLANT_DEFAULT_CENTER = { lon: 139.525589, lat: 35.451371 };
 
 // 旭区・泉区（南万騎が原／緑園都市エリア）の建物3D Tiles
 const BUILDING_URLS = [
@@ -182,7 +196,7 @@ const BUILDING_URLS = [
 
 // 「おまかせ」でランダム配置する時の中心と半径
 // （起動時に、デフォルト視点が実際に見下ろしている地面の座標へ更新される）
-let PLANT_CENTER = { lon: FACILITY_TARGET.lon, lat: FACILITY_TARGET.lat };
+let PLANT_CENTER = { lon: PLANT_DEFAULT_CENTER.lon, lat: PLANT_DEFAULT_CENTER.lat };
 const PLANT_RADIUS_M = 150;
 
 const GOOD_POINT_COLORS = {
@@ -303,24 +317,6 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
   }
   viewer.scene.globe.enableLighting = true;
 
-  // FACILITY_TARGET（見たい地点）を、VIEW_ANGLE（角度・距離）で見た時の
-  // カメラの実際の立ち位置(eye)を逆算する。
-  // Cesiumの camera.lookAt(target, offset) は「targetを狙ってカメラを配置する」機能なので、
-  // それで一度カメラを合わせてから、結果のカメラ座標(lon/lat/height)を読み取って使う。
-  function computeEyeFromTarget(target, headingDeg, pitchDeg, rangeM) {
-    const targetPos = Cesium.Cartesian3.fromDegrees(target.lon, target.lat, target.height || 0);
-    viewer.camera.lookAt(targetPos, new Cesium.HeadingPitchRange(
-      Cesium.Math.toRadians(headingDeg), Cesium.Math.toRadians(pitchDeg), rangeM
-    ));
-    viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); // 参照フレームを元に戻す（他の場所への影響を防ぐ）
-    const p = viewer.camera.positionCartographic;
-    return {
-      lon: Cesium.Math.toDegrees(p.longitude), lat: Cesium.Math.toDegrees(p.latitude), height: p.height,
-      heading: headingDeg, pitch: pitchDeg, roll: 0,
-    };
-  }
-  const INITIAL_CAMERA = computeEyeFromTarget(FACILITY_TARGET, VIEW_ANGLE.heading, VIEW_ANGLE.pitch, VIEW_ANGLE.range);
-
   const tilesets = [];
   for (const url of BUILDING_URLS) {
     try {
@@ -338,24 +334,41 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
     });
   }
 
-  // デフォルト視点が実際に見下ろしている地面の座標を、起動時に1回だけ正確に計算する
-  // （瞬間的にカメラを合わせて計測してから、すぐ通常のflyToに切り替える）
-  let PLANT_CENTER_CARTO = Cesium.Cartographic.fromDegrees(INITIAL_CAMERA.lon, INITIAL_CAMERA.lat);
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(INITIAL_CAMERA.lon, INITIAL_CAMERA.lat, INITIAL_CAMERA.height),
-    orientation: { heading: Cesium.Math.toRadians(INITIAL_CAMERA.heading), pitch: Cesium.Math.toRadians(INITIAL_CAMERA.pitch), roll: 0 },
-  });
-  const initialGroundHit = getLookAtGroundPosition();
-  if (initialGroundHit) {
-    PLANT_CENTER_CARTO = Cesium.Cartographic.fromCartesian(initialGroundHit);
-    PLANT_CENTER = {
-      lon: Cesium.Math.toDegrees(PLANT_CENTER_CARTO.longitude),
-      lat: Cesium.Math.toDegrees(PLANT_CENTER_CARTO.latitude),
-    };
-  }
+  // 「植える場所を選ぶ」の中心地点は、カメラの向きとは無関係にPLANT_DEFAULT_CENTERをそのまま使う
+  const PLANT_CENTER_CARTO = Cesium.Cartographic.fromDegrees(PLANT_DEFAULT_CENTER.lon, PLANT_DEFAULT_CENTER.lat);
 
   flyHome(2);
   document.getElementById("homeBtn").addEventListener("click", () => flyHome(1.5));
+
+  /* ============================================================
+     📷 カメラ情報パネル（デバッグ用）
+     見やすいアングルを手で探して「コピー」を押すと、INITIAL_CAMERA用の
+     コード片がコピーされる。それをCONFIGのINITIAL_CAMERAに貼り替えればOK。
+     ============================================================ */
+  const camPanel = document.getElementById("camPanel");
+  const camPanelToggle = document.getElementById("camPanelToggleBtn");
+  let camPanelOpen = false;
+  camPanelToggle.addEventListener("click", () => {
+    camPanelOpen = !camPanelOpen;
+    camPanel.classList.toggle("show", camPanelOpen);
+  });
+  function updateCamPanel() {
+    if (!camPanelOpen) return;
+    const p = viewer.camera.positionCartographic;
+    document.getElementById("camPanelBody").textContent =
+      `lon: ${Cesium.Math.toDegrees(p.longitude).toFixed(6)}, lat: ${Cesium.Math.toDegrees(p.latitude).toFixed(6)}, height: ${p.height.toFixed(1)}, heading: ${Cesium.Math.toDegrees(viewer.camera.heading).toFixed(2)}, pitch: ${Cesium.Math.toDegrees(viewer.camera.pitch).toFixed(2)}`;
+  }
+  viewer.camera.changed.addEventListener(updateCamPanel);
+  viewer.camera.percentageChanged = 0.001;
+  document.getElementById("camPanelCopyBtn").addEventListener("click", () => {
+    const p = viewer.camera.positionCartographic;
+    const code = `{ lon: ${Cesium.Math.toDegrees(p.longitude).toFixed(6)}, lat: ${Cesium.Math.toDegrees(p.latitude).toFixed(6)}, height: ${p.height.toFixed(1)}, heading: ${Cesium.Math.toDegrees(viewer.camera.heading).toFixed(2)}, pitch: ${Cesium.Math.toDegrees(viewer.camera.pitch).toFixed(2)}, roll: 0.00 }`;
+    navigator.clipboard.writeText(code).then(() => {
+      const btn = document.getElementById("camPanelCopyBtn");
+      btn.textContent = "✅ コピーした！";
+      setTimeout(() => (btn.textContent = "📋 この視点をコピー"), 1800);
+    });
+  });
 
   /* ============================================================
      ゆっくり見渡す（信号機用のゆるいパン）
@@ -630,16 +643,6 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
 
   const plantHint = document.getElementById("plantHint");
   const plantConfirmBar = document.getElementById("plantConfirmBar");
-
-  // カメラが画面中央で実際に見ている地面の位置を求める
-  // （カメラ自身の緯度経度をそのまま使うと、斜めから見てる分だけズレるため）
-  function getLookAtGroundPosition() {
-    const ray = viewer.camera.getPickRay(new Cesium.Cartesian2(
-      viewer.scene.canvas.clientWidth / 2, viewer.scene.canvas.clientHeight / 2
-    ));
-    if (!ray) return null;
-    return viewer.scene.globe.pick(ray, viewer.scene) || null;
-  }
 
   function enterPlantMode() {
     plantMode = true;
