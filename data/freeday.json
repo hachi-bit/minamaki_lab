@@ -1,11 +1,13 @@
 {
-  "lastUpdated": "2026-07-16T09:39:19.712Z",
+  "lastUpdated": "2026-07-17T03:37:36.652Z",
   "responses": [
     {
       "id": "r_backfill_1",
-      "timestamp": "2026-07-16T09:18:11.502Z",
+      "timestamp": "2026-07-17T03:37:36.640Z",
       "date": "2026-07-16",
       "visitorId": "v_9a04be793zo",
+      "latitude": null,
+      "longitude": null,
       "revisit": "はい、ぜひ！",
       "goodPoints": [
         "他の会員さんと交流できた",
@@ -13,20 +15,24 @@
       ]
     },
     {
-      "id": "r_2e333f1d",
-      "timestamp": "2026-07-16T09:18:59.992Z",
+      "id": "r_backfill_2",
+      "timestamp": "2026-07-17T03:37:36.645Z",
       "date": "2026-07-15",
       "visitorId": "v_9a04be793zo",
+      "latitude": null,
+      "longitude": null,
       "revisit": "機会があれば",
       "goodPoints": [
         "静かに作業・勉強ができた"
       ]
     },
     {
-      "id": "r_0d459545",
-      "timestamp": "2026-07-16T09:25:52.085Z",
+      "id": "r_backfill_3",
+      "timestamp": "2026-07-17T03:37:36.648Z",
       "date": "2026-07-16",
       "visitorId": "v_6aa78fdbqtr",
+      "latitude": null,
+      "longitude": null,
       "revisit": "わからない",
       "goodPoints": [
         "他の会員さんと交流できた",
@@ -35,10 +41,12 @@
       ]
     },
     {
-      "id": "r_79321feb",
-      "timestamp": "2026-07-16T09:39:19.239Z",
+      "id": "r_backfill_4",
+      "timestamp": "2026-07-17T03:37:36.652Z",
       "date": "2026-07-16",
       "visitorId": "v_6aa78fdbqtr",
+      "latitude": null,
+      "longitude": null,
       "revisit": "はい、ぜひ！",
       "goodPoints": [
         "他の会員さんと交流できた"
