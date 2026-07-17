@@ -329,14 +329,43 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
   const treeEntities = new Map(); // id -> {visitorId, count, comments...}
   const sscc = viewer.scene.screenSpaceCameraController;
 
-  function groundHeightAt(lat, lon) {
+  async function groundHeightAt(lat, lon) {
     const carto = Cesium.Cartographic.fromDegrees(lon, lat);
+    try {
+      const sampled = await Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, [carto]);
+      if (sampled[0] && typeof sampled[0].height === "number" && !isNaN(sampled[0].height)) {
+        return sampled[0].height;
+      }
+    } catch (e) {
+      console.warn("地形サンプリング失敗:", e.message);
+    }
     const h = viewer.scene.globe.getHeight(carto);
     return h !== undefined ? h : 0;
   }
 
-  function plantTree(visitorId, info) {
-    const groundH = groundHeightAt(info.lat, info.lon);
+  // ── デバッグ用：植えた場所に光の柱を立てる ──────────────────
+  // 木や雑草が「実は埋まってるだけ」なのか「そもそも作られてない」のかを
+  // 見分けるための目印。原因が分かったら DEBUG_PILLARS を false にすればOK。
+  const DEBUG_PILLARS = true;
+  function addDebugPillar(lat, lon, groundH, colorHex) {
+    if (!DEBUG_PILLARS) return;
+    viewer.entities.add({
+      polyline: {
+        positions: [
+          Cesium.Cartesian3.fromDegrees(lon, lat, groundH - 5),
+          Cesium.Cartesian3.fromDegrees(lon, lat, groundH + 80),
+        ],
+        width: 8,
+        material: new Cesium.PolylineGlowMaterialProperty({
+          glowPower: 0.35, color: Cesium.Color.fromCssColorString(colorHex),
+        }),
+      },
+    });
+  }
+
+  async function plantTree(visitorId, info) {
+    const groundH = await groundHeightAt(info.lat, info.lon);
+    addDebugPillar(info.lat, info.lon, groundH, "#38bdf8"); // 木＝水色の柱
     const scale = scaleForVisits(info.count);
     const trunkH = 1.6 * scale;
     const foliageR = 1.1 * scale;
@@ -413,24 +442,25 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
   }
 
   // アンケート1件＝雑草1株（過去の回答も含めて全部残る。にぎわいの積み重ね担当）
-  function plantGrass(r) {
+  async function plantGrass(r) {
     if (typeof r.lat !== "number" || typeof r.lon !== "number") return;
     const cat = (r.goodPoints && r.goodPoints[0]) || "その他";
+    const groundH = await groundHeightAt(r.lat, r.lon);
+    addDebugPillar(r.lat, r.lon, groundH, "#ff6fae"); // 雑草＝ピンクの柱
     viewer.entities.add({
-      position: Cesium.Cartesian3.fromDegrees(r.lon, r.lat, 0),
+      position: Cesium.Cartesian3.fromDegrees(r.lon, r.lat, groundH),
       billboard: {
         image: grassSvg(colorForCategory(cat)),
         scale: 0.7 + Math.random() * 0.3,
-        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
     });
   }
 
-  function buildForest(data) {
+  async function buildForest(data) {
     // まず全回答ぶんの雑草を生やす（木より先に描くことで、木の下に埋もれる形にする）
-    data.responses.forEach(plantGrass);
+    await Promise.all(data.responses.map(plantGrass));
 
     const byVisitor = new Map();
     for (const r of data.responses) {
@@ -458,7 +488,7 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
 
       const info = { visitorId, count: records.length, dominant, enthusiastic, lat: loc.lat, lon: loc.lon,
         comments: records.map((r) => r.comment).filter(Boolean) };
-      plantTree(visitorId, info);
+      await plantTree(visitorId, info);
 
       if (records.length >= 2) regularsCount++;
     }
@@ -643,7 +673,7 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
   const mine = mineRecords[mineRecords.length - 1];
   if (mine) window.__myLoc = { lat: mine.lat, lon: mine.lon };
 
-  buildForest(data);
+  await buildForest(data);
   ctaBtn.disabled = false;
   ctaBtn.textContent = "📝 アンケートに答える";
 
