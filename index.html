@@ -444,10 +444,10 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
   function grassSvg(hexColor) {
     const c = hexColor.replace('#', '%23');
     return 'data:image/svg+xml,' + encodeURIComponent(
-      `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">`
-      + `<path d="M10 20 C10 14 6 12 4 6" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round"/>`
-      + `<path d="M10 20 C10 13 10 11 10 3" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round"/>`
-      + `<path d="M10 20 C10 14 14 12 16 7" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round"/>`
+      `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 20 20">`
+      + `<path d="M10 20 C10 14 6 12 4 6" stroke="${c}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`
+      + `<path d="M10 20 C10 13 10 11 10 3" stroke="${c}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`
+      + `<path d="M10 20 C10 14 14 12 16 7" stroke="${c}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`
       + `</svg>`
     );
   }
@@ -462,7 +462,7 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
       position: Cesium.Cartesian3.fromDegrees(r.lon, r.lat, groundH),
       billboard: {
         image: grassSvg(colorForCategory(cat)),
-        scale: 0.7 + Math.random() * 0.3,
+        scale: 1.3 + Math.random() * 0.4,
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
@@ -495,9 +495,9 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
       const withLocRecords = records.filter((r) => typeof r.lat === "number" && typeof r.lon === "number");
       withLocRecords.sort((a, b) => (a.timestamp || a.date || "").localeCompare(b.timestamp || b.date || ""));
       const withLoc = withLocRecords[withLocRecords.length - 1]; // 一番新しい場所を採用（植え替え対応）
-      const loc = withLoc ? { lat: withLoc.lat, lon: withLoc.lon } : fallbackLocation(visitorId);
+      if (!withLoc) continue; // 位置情報が無い来場者は、ランダムな場所に浮かせず木を生やさない
 
-      const info = { visitorId, count: records.length, dominant, enthusiastic, lat: loc.lat, lon: loc.lon,
+      const info = { visitorId, count: records.length, dominant, enthusiastic, lat: withLoc.lat, lon: withLoc.lon,
         comments: records.map((r) => r.comment).filter(Boolean) };
       await plantTree(visitorId, info);
 
