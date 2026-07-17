@@ -158,8 +158,8 @@ const CONFIG = {
   dataUrl: "./data/freeday.json",
   formBaseUrl: "https://docs.google.com/forms/d/e/1FAIpQLSev-gZlTOuQqgV_UOyTMFaqkhn-OWW3OiEsVxzP7OJypWE8hw/viewform",
   formVisitorIdEntry: "entry.1116716516",
-  formLatEntry: "entry.XXXXXXXXX",  // 「緯度」欄を追加したら書き換える
-  formLonEntry: "entry.YYYYYYYYY",  // 「経度」欄を追加したら書き換える
+  formLatEntry: "entry.1486281726",  // 緯度
+  formLonEntry: "entry.1964800393",  // 経度
 };
 
 const PLATEAU_ION_TOKEN =
@@ -531,8 +531,8 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
       destination: Cesium.Cartesian3.fromRadians(pos.longitude, pos.latitude, Math.max(pos.height, 400)),
       orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
     });
-    sscc.enableTilt = false;
-    sscc.enableRotate = false;
+    sscc.enableTilt = false; // 見下ろし角度は固定
+    // enableRotate は有効なままにする（真上視点ではこれが前後左右の移動操作になるため）
   }
   function exitPlantMode() {
     plantMode = false;
