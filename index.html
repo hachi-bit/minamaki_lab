@@ -1,639 +1,655 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>にぎわう街 | Freeday City</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>にぎわう森 | Freeday Forest</title>
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Cesium.js"></script>
+<link href="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
 <style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100%; height:100%; overflow:hidden; font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",system-ui,sans-serif; color:#eaf2ff; }
+  #cesiumContainer { width:100%; height:100%; }
+  .cesium-credit-logoContainer{ display:none !important; }
+  .cesium-credit-textContainer{ font-size:9px !important; }
+  .cesium-viewer-bottom{ display:none !important; }
+
   :root{
-    --ink:#eaf2ff;
-    --sub:#9db3d6;
-    --accent:#ffd166;
-    --bg:#04060f;
-    --panel:rgba(8,12,26,0.72);
-    --border:rgba(255,255,255,0.08);
+    --accent:#ffd166; --panel:rgba(8,12,26,0.78); --border:rgba(255,255,255,0.1); --sub:#9db3d6;
   }
-  *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;height:100%;background:var(--bg);overflow:hidden;
-    font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",system-ui,sans-serif;color:var(--ink);}
-  canvas{display:block;touch-action:none;}
 
-  #loading{
-    position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-    flex-direction:column;gap:10px;background:var(--bg);z-index:50;transition:opacity .5s;
-  }
-  #loading .spin{width:34px;height:34px;border-radius:50%;border:3px solid #223;border-top-color:var(--accent);
-    animation:spin 1s linear infinite;}
-  @keyframes spin{to{transform:rotate(360deg);}}
-  #loading p{color:var(--sub);font-size:13px;}
+  #loading{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:10px; background:#04060f; z-index:60; transition:opacity .5s; }
+  #loading .spin{ width:34px; height:34px; border-radius:50%; border:3px solid #223; border-top-color:var(--accent); animation:spin 1s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  #loading p{ color:var(--sub); font-size:13px; }
 
-  #hud{
-    position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;
-    padding:14px 16px;pointer-events:none;z-index:10;
-  }
-  #titleBox h1{font-size:16px;margin:0 0 2px;letter-spacing:.04em;font-weight:600;}
-  #titleBox span{font-size:11px;color:var(--sub);}
+  #hud{ position:fixed; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:flex-start;
+    padding:14px 16px; pointer-events:none; z-index:10; }
+  #titleBox h1{ font-size:15px; margin:0 0 2px; font-weight:600; }
+  #titleBox span{ font-size:10.5px; color:var(--sub); }
+  #stats{ display:flex; gap:8px; pointer-events:auto; }
+  .stat{ background:var(--panel); border:1px solid var(--border); backdrop-filter:blur(6px);
+    border-radius:12px; padding:7px 11px; text-align:center; min-width:56px; }
+  .stat b{ display:block; font-size:17px; line-height:1.1; color:var(--accent); }
+  .stat small{ font-size:10px; color:var(--sub); }
 
-  #stats{display:flex;gap:8px;pointer-events:auto;}
-  .stat{
-    background:var(--panel);border:1px solid var(--border);backdrop-filter:blur(6px);
-    border-radius:12px;padding:8px 12px;text-align:center;min-width:64px;
-  }
-  .stat b{display:block;font-size:18px;line-height:1.1;color:var(--accent);}
-  .stat small{font-size:10px;color:var(--sub);}
+  #ticker{ position:fixed; top:60px; left:50%; transform:translateX(-50%); max-width:min(520px,86vw);
+    text-align:center; font-size:12px; background:var(--panel); border:1px solid var(--border);
+    border-radius:999px; padding:7px 16px; backdrop-filter:blur(6px); opacity:0; transition:opacity .8s;
+    z-index:10; pointer-events:none; }
+  #ticker.show{ opacity:1; }
 
-  #ticker{
-    position:fixed;top:64px;left:50%;transform:translateX(-50%);
-    max-width:min(560px,86vw);text-align:center;font-size:12.5px;color:var(--ink);
-    background:var(--panel);border:1px solid var(--border);border-radius:999px;
-    padding:8px 18px;backdrop-filter:blur(6px);opacity:0;transition:opacity .8s;z-index:10;
-    pointer-events:none;
-  }
-  #ticker.show{opacity:1;}
-  #ticker b{color:var(--accent);font-weight:600;}
+  #legend{ position:fixed; left:16px; bottom:150px; display:none; flex-direction:column; gap:6px;
+    background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:10px 12px;
+    font-size:11px; color:var(--sub); backdrop-filter:blur(6px); z-index:20; max-width:220px; }
+  #legend.open{ display:flex; }
+  #legend .row{ display:flex; align-items:center; gap:6px; }
+  #legend .dot{ width:9px; height:9px; border-radius:50%; flex:none; }
+  #legend .cap{ color:#eaf2ff; font-size:11px; margin-top:2px; }
 
-  #legend{
-    position:fixed;left:16px;bottom:84px;display:none;flex-direction:column;gap:6px;
-    background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 12px;
-    font-size:11px;color:var(--sub);backdrop-filter:blur(6px);z-index:20;max-width:220px;
-  }
-  #legend.open{display:flex;}
-  #legend .row{display:flex;align-items:center;gap:6px;}
-  #legend .dot{width:9px;height:9px;border-radius:50%;flex:none;}
-  #legend .cap{color:var(--ink);font-size:11px;margin-top:2px;}
+  #infoCard{ position:fixed; left:50%; bottom:150px; transform:translateX(-50%) translateY(10px);
+    max-width:min(320px,84vw); background:var(--panel); border:1px solid rgba(255,209,102,0.5);
+    border-radius:14px; padding:12px 16px; font-size:12.5px; line-height:1.6; backdrop-filter:blur(6px);
+    opacity:0; pointer-events:none; transition:all .35s ease; z-index:22; }
+  #infoCard.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  #infoCard .tag{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:10.5px;
+    margin:2px 4px 0 0; color:#0a0d16; font-weight:700; }
+  #infoCard .mine{ color:var(--accent); font-weight:700; }
 
-  #welcome{
-    position:fixed;top:110px;left:50%;transform:translateX(-50%) translateY(-12px);
-    background:linear-gradient(135deg,rgba(255,209,102,0.16),rgba(255,209,102,0.04));
-    border:1px solid rgba(255,209,102,0.4);border-radius:14px;padding:10px 18px;
-    font-size:12.5px;text-align:center;opacity:0;pointer-events:none;transition:all .6s ease;z-index:10;
-  }
-  #welcome.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  #controls{ position:fixed; right:16px; bottom:150px; display:flex; flex-direction:column; gap:8px; z-index:15; }
+  .iconBtn{ width:42px; height:42px; border-radius:50%; background:var(--panel); border:1px solid var(--border);
+    color:#eaf2ff; display:flex; align-items:center; justify-content:center; font-size:16px; cursor:pointer;
+    backdrop-filter:blur(6px); }
+  .iconBtn.active{ border-color:var(--accent); color:var(--accent); }
 
-  #controls{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:10;}
-  .iconBtn{
-    width:42px;height:42px;border-radius:50%;background:var(--panel);border:1px solid var(--border);
-    color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;
-    backdrop-filter:blur(6px);
-  }
-  .iconBtn.active{border-color:var(--accent);color:var(--accent);}
+  #ctaBar{ position:fixed; left:0; right:0; bottom:0; padding:14px 16px calc(16px + env(safe-area-inset-bottom));
+    display:flex; flex-direction:column; align-items:center; gap:8px; z-index:25; }
+  #plantSheet{ width:100%; max-width:420px; background:var(--panel); border:1px solid var(--border);
+    border-radius:16px; padding:14px; backdrop-filter:blur(10px); display:none; flex-direction:column; gap:8px; }
+  #plantSheet.show{ display:flex; }
+  #plantSheet p{ font-size:12.5px; color:var(--sub); line-height:1.5; }
+  #plantSheet .row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .sheetBtn{ flex:1; padding:11px; border-radius:10px; border:1px solid var(--border); background:rgba(255,255,255,0.05);
+    color:#eaf2ff; font-size:12.5px; cursor:pointer; }
+  .sheetBtn.primary{ background:linear-gradient(135deg,#ffd166,#ff8fab); color:#1a1206; border:none; font-weight:700; }
 
-  #surveyBtn{
-    position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
-    background:linear-gradient(135deg,#ffd166,#ff8fab);color:#1a1206;border:none;
-    padding:13px 26px;border-radius:999px;font-size:14px;font-weight:700;letter-spacing:.02em;
-    box-shadow:0 8px 24px rgba(255,143,171,0.35);cursor:pointer;z-index:10;
-  }
-  #surveyBtn:active{transform:translateX(-50%) scale(0.96);}
-  #surveyBtn:disabled{opacity:0.4;pointer-events:none;}
+  #plantConfirmBar{ width:100%; max-width:420px; background:var(--panel); border:1px solid rgba(255,209,102,0.5);
+    border-radius:14px; padding:12px; display:none; align-items:center; justify-content:space-between; gap:8px;
+    backdrop-filter:blur(10px); }
+  #plantConfirmBar.show{ display:flex; }
+  #plantConfirmBar span{ font-size:11.5px; color:var(--sub); }
+
+  #ctaBtn{ background:linear-gradient(135deg,#ffd166,#ff8fab); color:#1a1206; border:none;
+    padding:13px 26px; border-radius:999px; font-size:14px; font-weight:700; letter-spacing:.02em;
+    box-shadow:0 8px 24px rgba(255,143,171,0.35); cursor:pointer; }
+  #ctaBtn:disabled{ opacity:0.4; pointer-events:none; }
+
+  #plantHint{ position:fixed; top:100px; left:50%; transform:translateX(-50%); background:rgba(74,222,128,0.15);
+    border:1px solid #4ade80; color:#4ade80; padding:8px 16px; border-radius:8px; font-size:12px; z-index:20; display:none; }
+  #plantHint.show{ display:block; }
 
   @media (max-width:520px){
-    #legend{max-width:78vw;}
-    .stat{min-width:52px;padding:6px 9px;}
-    .stat b{font-size:15px;}
-    #titleBox h1{font-size:14px;}
-    #ticker{top:58px;}
+    #legend{ max-width:78vw; }
+    .stat{ min-width:48px; padding:6px 9px; }
+    .stat b{ font-size:14px; }
+    #titleBox h1{ font-size:13px; }
   }
-
-  #infoCard{
-    position:fixed;left:50%;bottom:78px;transform:translateX(-50%) translateY(10px);
-    max-width:min(320px,84vw);background:var(--panel);border:1px solid rgba(255,209,102,0.5);
-    border-radius:14px;padding:12px 16px;font-size:12.5px;line-height:1.6;backdrop-filter:blur(6px);
-    opacity:0;pointer-events:none;transition:all .35s ease;z-index:15;
-  }
-  #infoCard.show{opacity:1;transform:translateX(-50%) translateY(0);}
-  #infoCard .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10.5px;margin:2px 4px 0 0;color:#0a0d16;font-weight:700;}
-  #infoCard .mine{color:var(--accent);font-weight:700;}
 </style>
 </head>
 <body>
-
-<div id="loading"><div class="spin"></div><p>街をつくっています…</p></div>
+<div id="cesiumContainer"></div>
+<div id="loading"><div class="spin"></div><p>森をそだてています…</p></div>
 
 <div id="hud">
   <div id="titleBox">
-    <h1>にぎわう街 ―フリーデイ・シティ―</h1>
-    <span>みんなのアンケートが、街の灯りになる</span>
+    <h1>にぎわう森 ―フリーデイ・フォレスト―</h1>
+    <span>来るたびに、あなたの木が育つ</span>
   </div>
   <div id="stats">
     <div class="stat"><b id="statTotal">0</b><small>総来場</small></div>
     <div class="stat"><b id="statToday">0</b><small>本日</small></div>
-    <div class="stat"><b id="statVisitors">0</b><small>常連さん</small></div>
+    <div class="stat"><b id="statVisitors">0</b><small>木の数</small></div>
   </div>
 </div>
 
 <div id="ticker"></div>
-<div id="welcome"></div>
+<div id="infoCard"></div>
+<div id="plantHint">📍 植えたい場所をタップしてな</div>
 
 <div id="legend">
-  <div class="cap">👆 建物をタップすると詳細が見れるで</div>
-  <div class="cap">よかった点</div>
+  <div class="cap">👆 木をタップすると詳細が見れるで</div>
+  <div class="cap">木の色（よかった点）</div>
   <div class="row"><span class="dot" style="background:#ff6fae"></span>他の会員さんと交流</div>
   <div class="row"><span class="dot" style="background:#62c3ff"></span>静かに作業・勉強</div>
   <div class="row"><span class="dot" style="background:#ffb86b"></span>飲食しながらのんびり</div>
   <div class="row"><span class="dot" style="background:#c39bff"></span>子どもと一緒に</div>
   <div class="row"><span class="dot" style="background:#9be564"></span>その他</div>
-  <div class="cap">その他</div>
+  <div class="cap">大きさ＝来場回数</div>
+  <div class="row"><span class="dot" style="background:#9be564"></span>🌱雑草＝過去の回答1件ずつ</div>
   <div class="row"><span class="dot" style="background:#ffd166"></span>✦「また来たい」の輝き</div>
-  <div class="row"><span class="dot" style="background:#ffffff;border:2px solid #ffd166"></span>あなたの建物</div>
+  <div class="row"><span class="dot" style="background:#ffffff;border:2px solid #ffd166"></span>あなたの木</div>
 </div>
 
 <div id="controls">
   <button class="iconBtn" id="infoBtn" title="見方">❔</button>
-  <button class="iconBtn active" id="rotateBtn" title="自動回転">⟳</button>
+  <button class="iconBtn" id="tourBtn" title="ゆっくり見渡す">🔄</button>
+  <button class="iconBtn" id="homeBtn" title="初期位置">🏠</button>
 </div>
 
-<div id="infoCard"></div>
+<div id="ctaBar">
+  <div id="plantConfirmBar">
+    <span>この場所に木を植えるのら？</span>
+    <button class="sheetBtn primary" id="plantConfirmBtn" style="flex:none;padding:9px 16px;">決定</button>
+    <button class="sheetBtn" id="plantCancelBtn" style="flex:none;padding:9px 16px;">やめる</button>
+  </div>
+  <div id="plantSheet">
+    <p id="plantSheetText"></p>
+    <div class="row" id="plantSheetRow"></div>
+  </div>
+  <button id="ctaBtn" disabled>📝 アンケートに答える</button>
+</div>
 
-<button id="surveyBtn" disabled>📝 アンケートに答える</button>
-
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
-
-<script type="module">
-import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-
+<script>
 /* ============================================================
-   CONFIG ―― 自分の環境に合わせてここだけ書き換えればOK
+   CONFIG
    ============================================================ */
 const CONFIG = {
   dataUrl: "./data/freeday.json",
-
-  // 「フォームに事前入力する」で作ったURLのうち、?usp=pp_url より前の部分
   formBaseUrl: "https://docs.google.com/forms/d/e/1FAIpQLSev-gZlTOuQqgV_UOyTMFaqkhn-OWW3OiEsVxzP7OJypWE8hw/viewform",
-
-  // 「来場者ID」欄のentry番号
   formVisitorIdEntry: "entry.1116716516",
-
-  autoRotate: true,
+  formLatEntry: "entry.XXXXXXXXX",  // 「緯度」欄を追加したら書き換える
+  formLonEntry: "entry.YYYYYYYYY",  // 「経度」欄を追加したら書き換える
 };
 
-// 「また参加したいと思いますか？」の回答ごとの高さ・輝きの設定
-const REVISIT_TIERS = {
-  "はい、ぜひ！":   { height: 4.4, glow: true  },
-  "機会があれば":    { height: 3.0, glow: false },
-  "わからない":      { height: 2.0, glow: false },
-  "あまり…":         { height: 1.2, glow: false },
-};
-function tierFor(revisit) {
-  return REVISIT_TIERS[revisit] || { height: 2.2, glow: false };
-}
+const PLATEAU_ION_TOKEN =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +
+  'eyJqdGkiOiJlNjk0MTM4NC1lMWI0LTQxNTgtYjcxZS01ZWJhMGJlMTE1MWQiLCJpZCI6MTQ5ODk3LCJpYXQiOjE3MTUxNTEyODZ9.' +
+  '2aUmEQ2-fDsjf-XeC6-hZpwkgwLse3yXoXF4xTOvPAY';
+const TERRAIN_ASSET_ID = 2488101;
 
-// 「よかった点」ごとの色
+// テスト用の初期カメラ（本番の施設位置が決まったらここを書き換える）
+const INITIAL_CAMERA = { lon: 139.518853, lat: 35.431628, height: 500.1, heading: 24.10, pitch: -30.23, roll: 0.00 };
+
+// 旭区・泉区（南万騎が原／緑園都市エリア）の建物3D Tiles
+const BUILDING_URLS = [
+  'https://api.plateauview.mlit.go.jp/datacatalog/3dtiles/14112-bldg-lod1-texture-2024/tileset.json', // 旭区
+  'https://api.plateauview.mlit.go.jp/datacatalog/3dtiles/14116-bldg-lod1-texture-2024/tileset.json', // 泉区
+];
+
+// 「おまかせ」でランダム配置する時の中心と半径（本番位置が決まったらINITIAL_CAMERAと合わせて調整）
+const PLANT_CENTER = { lon: INITIAL_CAMERA.lon, lat: INITIAL_CAMERA.lat };
+const PLANT_RADIUS_M = 150;
+
 const GOOD_POINT_COLORS = {
-  "他の会員さんと交流できた": 0xff6fae,
-  "静かに作業・勉強ができた": 0x62c3ff,
-  "飲食しながらのんびりできた": 0xffb86b,
-  "子どもと一緒に過ごせた": 0xc39bff,
-  "特になし": 0x6b7690,
-  "その他": 0x9be564,
+  "他の会員さんと交流できた": "#ff6fae",
+  "静かに作業・勉強ができた": "#62c3ff",
+  "飲食しながらのんびりできた": "#ffb86b",
+  "子どもと一緒に過ごせた": "#c39bff",
+  "特になし": "#6b7690",
+  "その他": "#9be564",
 };
 function colorForCategory(cat) {
   if (GOOD_POINT_COLORS[cat]) return GOOD_POINT_COLORS[cat];
   let h = 0;
   for (const c of String(cat)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return new THREE.Color(`hsl(${h % 360},70%,60%)`).getHex();
+  return `hsl(${h % 360},70%,60%)`;
 }
-function hueForVisitor(id) {
-  let h = 0;
-  for (const c of String(id)) h = (h * 33 + c.charCodeAt(0)) >>> 0;
-  return h % 360;
+
+// 来場回数 → 木の大きさ倍率
+function scaleForVisits(n) {
+  if (n >= 11) return 2.1;
+  if (n >= 7) return 1.6;
+  if (n >= 4) return 1.2;
+  if (n >= 2) return 0.85;
+  return 0.5;
 }
 
 /* ============================================================
    来場者ID（localStorage・ログイン不要の緩い識別）
-   ・すでに端末にIDがあれば、それをそのまま使う（＝自分の過去の投稿と一致するのは正常）
-   ・端末に無い＝新規発行のときだけ、freeday.json内の既存IDと被っていないか確認する
    ============================================================ */
 const VISITOR_KEY = "freeday_visitor_id";
 function getOrCreateVisitorId(knownIds) {
   const existing = localStorage.getItem(VISITOR_KEY);
   if (existing) return existing;
-
   let id, tries = 0;
   do {
     id = "v_" + Math.random().toString(16).slice(2, 10) + Date.now().toString(36).slice(-3);
     tries++;
   } while (knownIds.has(id) && tries < 8);
-
   localStorage.setItem(VISITOR_KEY, id);
   return id;
 }
 let MY_VISITOR_ID = null;
 
-const surveyBtn = document.getElementById("surveyBtn");
-surveyBtn.addEventListener("click", () => {
-  if (!MY_VISITOR_ID) return;
-  const url = `${CONFIG.formBaseUrl}?usp=pp_url&${CONFIG.formVisitorIdEntry}=${encodeURIComponent(MY_VISITOR_ID)}`;
-  window.open(url, "_blank");
-});
-
 /* ============================================================
    データ取得
-   ・お名前／ご要望欄は、プライバシー配慮のため freeday.json には含めない設計
    ============================================================ */
 const SAMPLE_FALLBACK = {
   lastUpdated: new Date().toISOString(),
   responses: [
-    { id:"demo1", date:"2026-07-10", visitorId:"v_demo1", revisit:"はい、ぜひ！", goodPoints:["静かに作業・勉強ができた"], comment:"静かで集中できました" },
-    { id:"demo2", date:"2026-07-16", visitorId:"v_demo1", revisit:"はい、ぜひ！", goodPoints:["他の会員さんと交流できた","飲食しながらのんびりできた"], comment:"また来ました！" },
-    { id:"demo3", date:"2026-07-16", visitorId:"v_demo2", revisit:"機会があれば", goodPoints:["その他"], comment:"" },
+    { id:"demo1", date:"2026-07-10", visitorId:"v_demo1", revisit:"はい、ぜひ！", goodPoints:["静かに作業・勉強ができた"], comment:"静かで集中できました", lat:35.4318, lon:139.5192 },
+    { id:"demo2", date:"2026-07-16", visitorId:"v_demo1", revisit:"はい、ぜひ！", goodPoints:["他の会員さんと交流できた"], comment:"また来ました！", lat:35.4318, lon:139.5192 },
+    { id:"demo3", date:"2026-07-16", visitorId:"v_demo2", revisit:"機会があれば", goodPoints:["その他"], comment:"", lat:35.4314, lon:139.5185 },
   ],
 };
 
 async function loadData() {
   try {
-    const cacheBust = `${CONFIG.dataUrl}${CONFIG.dataUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
-    const res = await fetch(cacheBust, { cache: "no-store" });
+    const bust = `${CONFIG.dataUrl}${CONFIG.dataUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
+    const res = await fetch(bust, { cache: "no-store" });
     if (!res.ok) throw new Error("fetch failed");
     const json = await res.json();
     if (!json.responses || !json.responses.length) throw new Error("empty");
     json.responses.forEach((r) => { if (!Array.isArray(r.goodPoints)) r.goodPoints = r.goodPoints ? [r.goodPoints] : ["特になし"]; });
     return json;
   } catch (e) {
-    console.warn("freeday.json が読めなかったのでサンプルデータを表示するのら:", e.message);
+    console.warn("freeday.json が読めなかったのでサンプルを表示するのら:", e.message);
     return SAMPLE_FALLBACK;
   }
 }
 
-/* ============================================================
-   テキストスプライト
-   ============================================================ */
-function makeLabel(text, { size = 42, color = "#eaf2ff" } = {}) {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  const pad = 10;
-  ctx.font = `${size}px "Hiragino Sans","Noto Sans JP",sans-serif`;
-  const w = ctx.measureText(text).width + pad * 2;
-  canvas.width = w;
-  canvas.height = size + pad * 2;
-  ctx.font = `${size}px "Hiragino Sans","Noto Sans JP",sans-serif`;
-  ctx.fillStyle = color;
-  ctx.textBaseline = "top";
-  ctx.fillText(text, pad, pad);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
-  const sprite = new THREE.Sprite(mat);
-  const scale = 0.014;
-  sprite.scale.set(canvas.width * scale, canvas.height * scale, 1);
-  return sprite;
+// 緯度経度が無いレコード用の、visitorIdから決定的に作るフォールバック位置
+function fallbackLocation(visitorId) {
+  let h = 0;
+  for (const c of String(visitorId)) h = (h * 33 + c.charCodeAt(0)) >>> 0;
+  const angle = (h % 360) * Math.PI / 180;
+  const rad = PLANT_RADIUS_M * (0.3 + ((h >> 8) % 70) / 100);
+  return offsetLatLon(PLANT_CENTER.lat, PLANT_CENTER.lon, angle, rad);
 }
-
-/* ============================================================
-   シーン構築
-   ============================================================ */
-const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x050914, 0.017);
-
-const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 400);
-camera.position.set(18, 16, 26);
-
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.1;
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-document.body.appendChild(renderer.domElement);
-
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.06;
-controls.autoRotate = CONFIG.autoRotate;
-controls.autoRotateSpeed = 0.55;
-controls.minDistance = 6;
-controls.maxDistance = 80;
-controls.maxPolarAngle = Math.PI * 0.49;
-
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.05, 0.55, 0.16);
-composer.addPass(bloom);
-
-{
-  const geo = new THREE.BufferGeometry();
-  const N = 1200;
-  const pos = new Float32Array(N * 3);
-  for (let i = 0; i < N; i++) {
-    const r = 90 + Math.random() * 120;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.random() * Math.PI * 0.5;
-    pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-    pos[i * 3 + 1] = Math.abs(r * Math.cos(phi)) + 10;
-    pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
-  }
-  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-  const mat = new THREE.PointsMaterial({ color: 0x9fb8ff, size: 0.5, transparent: true, opacity: 0.6 });
-  scene.add(new THREE.Points(geo, mat));
-}
-
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(400, 400),
-  new THREE.MeshStandardMaterial({ color: 0x070b18, roughness: 1 })
-);
-ground.rotation.x = -Math.PI / 2;
-ground.position.y = -0.01;
-scene.add(ground);
-
-const grid = new THREE.GridHelper(400, 80, 0x223458, 0x111a30);
-scene.add(grid);
-
-scene.add(new THREE.AmbientLight(0x223355, 0.9));
-const moon = new THREE.DirectionalLight(0x6f8fff, 0.5);
-moon.position.set(-20, 30, -10);
-scene.add(moon);
-
-/* ============================================================
-   街をデータから組み立てる
-   ============================================================ */
-const cityGroup = new THREE.Group();
-scene.add(cityGroup);
-const DAY_SPACING = 9;
-const fireflies = [];
-const pickables = [];
-const pulsingRings = [];
-
-function buildCity(data) {
-  while (cityGroup.children.length) cityGroup.remove(cityGroup.children[0]);
-  fireflies.length = 0;
-  pickables.length = 0;
-  pulsingRings.length = 0;
-
-  const responses = data.responses.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
-
-  const byDate = new Map();
-  for (const r of responses) {
-    if (!byDate.has(r.date)) byDate.set(r.date, []);
-    byDate.get(r.date).push(r);
-  }
-  const dates = [...byDate.keys()].sort();
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const visitorPoints = new Map();
-
-  dates.forEach((date, di) => {
-    const dayResponses = byDate.get(date);
-    const baseX = di * DAY_SPACING - ((dates.length - 1) * DAY_SPACING) / 2;
-    const platformR = Math.max(1.8, 1.15 * Math.sqrt(dayResponses.length) + 1.1);
-
-    const platform = new THREE.Mesh(
-      new THREE.CylinderGeometry(platformR, platformR * 1.05, 0.25, 24),
-      new THREE.MeshStandardMaterial({
-        color: date === todayStr ? 0x2a2440 : 0x121a30,
-        emissive: date === todayStr ? 0x332a10 : 0x000000,
-        roughness: 0.85,
-      })
-    );
-    platform.position.set(baseX, 0.12, 0);
-    cityGroup.add(platform);
-
-    const label = makeLabel(date.slice(5).replace("-", "/"), { color: date === todayStr ? "#ffd166" : "#9db3d6" });
-    label.position.set(baseX, 0.9, platformR + 1.1);
-    cityGroup.add(label);
-
-    dayResponses.forEach((r, i) => {
-      const angle = i * 2.399963;
-      const rad = 1.15 * Math.sqrt(i + 0.6);
-      const anchorX = baseX + Math.cos(angle) * rad;
-      const anchorZ = Math.sin(angle) * rad;
-      const tier = tierFor(r.revisit);
-      const points = r.goodPoints && r.goodPoints.length ? r.goodPoints : ["特になし"];
-      const isMine = r.visitorId === MY_VISITOR_ID;
-
-      points.slice(0, 5).forEach((pt, j) => {
-        const bAngle = (j / points.length) * Math.PI * 2 + i;
-        const bRad = points.length > 1 ? 0.34 : 0;
-        const x = anchorX + Math.cos(bAngle) * bRad;
-        const z = anchorZ + Math.sin(bAngle) * bRad;
-        const h = tier.height * (0.85 + Math.random() * 0.25);
-        const color = colorForCategory(pt);
-
-        const mat = new THREE.MeshStandardMaterial({
-          color, emissive: color, emissiveIntensity: 0.55, roughness: 0.4, metalness: 0.15,
-        });
-        const building = new THREE.Mesh(new THREE.BoxGeometry(0.5, h, 0.5), mat);
-        building.position.set(x, h / 2, z);
-        building.userData = { date, goodPoint: pt, revisit: r.revisit, isMine };
-        cityGroup.add(building);
-        pickables.push(building);
-      });
-
-      if (tier.glow) {
-        const sparkGeo = new THREE.BufferGeometry();
-        const n = 14;
-        const p = new Float32Array(n * 3);
-        for (let s = 0; s < n; s++) {
-          p[s * 3] = anchorX + (Math.random() - 0.5) * 0.7;
-          p[s * 3 + 1] = tier.height + 0.4 + Math.random() * 0.8;
-          p[s * 3 + 2] = anchorZ + (Math.random() - 0.5) * 0.7;
-        }
-        sparkGeo.setAttribute("position", new THREE.BufferAttribute(p, 3));
-        const sparkMat = new THREE.PointsMaterial({
-          color: 0xffd166, size: 0.12, transparent: true, opacity: 0.9,
-          blending: THREE.AdditiveBlending, depthWrite: false,
-        });
-        cityGroup.add(new THREE.Points(sparkGeo, sparkMat));
-      }
-
-      if (isMine) {
-        const ring = new THREE.Mesh(
-          new THREE.TorusGeometry(0.75, 0.06, 8, 24),
-          new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true })
-        );
-        ring.rotation.x = Math.PI / 2;
-        ring.position.set(anchorX, 0.1, anchorZ);
-        ring.userData.pulse = true;
-        cityGroup.add(ring);
-        pulsingRings.push(ring);
-
-        const tag = makeLabel("★ あなたの建物", { color: "#ffd166", size: 34 });
-        tag.position.set(anchorX, tier.height + 1.1, anchorZ);
-        cityGroup.add(tag);
-      }
-
-      if (!visitorPoints.has(r.visitorId)) visitorPoints.set(r.visitorId, []);
-      visitorPoints.get(r.visitorId).push(new THREE.Vector3(anchorX, tier.height + 0.4, anchorZ));
-    });
-  });
-
-  let regularsCount = 0;
-  for (const [vid, pts] of visitorPoints) {
-    if (pts.length < 2) continue;
-    regularsCount++;
-    const hue = hueForVisitor(vid);
-    const color = new THREE.Color(`hsl(${hue},80%,65%)`);
-    const curve = new THREE.CatmullRomCurve3(pts);
-    const tubeGeo = new THREE.TubeGeometry(curve, Math.max(8, pts.length * 6), 0.03, 6, false);
-    const tubeMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.65 });
-    cityGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
-
-    const firefly = new THREE.Mesh(
-      new THREE.SphereGeometry(0.11, 12, 12),
-      new THREE.MeshBasicMaterial({ color })
-    );
-    firefly.userData.path = pts;
-    firefly.userData.t = Math.random();
-    fireflies.push(firefly);
-    cityGroup.add(firefly);
-
-    if (vid === MY_VISITOR_ID) {
-      showWelcome(`ようこそ、${pts.length}回目の来訪やで！おおきに！`);
-    }
-  }
-
-  const totalWidth = dates.length * DAY_SPACING;
-  controls.target.set(0, 1.2, 0);
-  camera.position.set(Math.min(30, 10 + totalWidth * 0.28), 14 + Math.min(10, dates.length), Math.min(36, 14 + totalWidth * 0.3));
-
-  document.getElementById("statTotal").textContent = responses.length;
-  document.getElementById("statToday").textContent = (byDate.get(todayStr) || []).length;
-  document.getElementById("statVisitors").textContent = regularsCount;
-
-  startTicker(responses.map((r) => r.comment).filter((c) => c && c.trim()));
-}
-
-function showWelcome(text) {
-  const el = document.getElementById("welcome");
-  el.textContent = text;
-  el.classList.add("show");
-  setTimeout(() => el.classList.remove("show"), 4500);
-}
-
-/* ============================================================
-   みんなの声チッカー（公開OKにした「感想」だけを回す）
-   ============================================================ */
-let tickerTimer = null;
-function startTicker(comments) {
-  const el = document.getElementById("ticker");
-  if (tickerTimer) clearInterval(tickerTimer);
-  if (!comments.length) { el.classList.remove("show"); return; }
-  let i = 0;
-  const show = () => {
-    el.innerHTML = `<b>“</b> ${comments[i % comments.length]} <b>”</b>`;
-    el.classList.add("show");
-    i++;
-  };
-  show();
-  tickerTimer = setInterval(show, 5500);
+function offsetLatLon(lat, lon, angleRad, distM) {
+  const mToRadLat = distM / 6371000;
+  const dLat = Math.cos(angleRad) * mToRadLat;
+  const dLon = (Math.sin(angleRad) * mToRadLat) / Math.cos(lat * Math.PI / 180);
+  return { lat: lat + dLat * 180 / Math.PI, lon: lon + dLon * 180 / Math.PI };
 }
 
 /* ============================================================
    起動
    ============================================================ */
-loadData().then((data) => {
+Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
+
+(async () => {
+  const viewer = new Cesium.Viewer('cesiumContainer', {
+    baseLayer: false,
+    terrainProvider: await Cesium.CesiumTerrainProvider.fromIonAssetId(TERRAIN_ASSET_ID),
+    animation: false, timeline: false, homeButton: false, geocoder: false,
+    sceneModePicker: false, baseLayerPicker: false, navigationHelpButton: false,
+    fullscreenButton: false, selectionIndicator: false, infoBox: false,
+  });
+  viewer.scene.globe.depthTestAgainstTerrain = true;
+  try {
+    viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+      url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
+      maximumLevel: 18, credit: '地理院タイル',
+    }));
+  } catch (e) {
+    viewer.imageryLayers.addImageryProvider(new Cesium.OpenStreetMapImageryProvider({ url: 'https://tile.openstreetmap.org/' }));
+  }
+  viewer.scene.globe.enableLighting = true;
+
+  const tilesets = [];
+  for (const url of BUILDING_URLS) {
+    try {
+      const ts = await Cesium.Cesium3DTileset.fromUrl(url);
+      viewer.scene.primitives.add(ts);
+      tilesets.push(ts);
+    } catch (e) { console.warn('建物タイル読み込み失敗:', url, e.message); }
+  }
+
+  function flyHome(duration) {
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(INITIAL_CAMERA.lon, INITIAL_CAMERA.lat, INITIAL_CAMERA.height),
+      orientation: { heading: Cesium.Math.toRadians(INITIAL_CAMERA.heading), pitch: Cesium.Math.toRadians(INITIAL_CAMERA.pitch), roll: 0 },
+      duration,
+    });
+  }
+  flyHome(2);
+  document.getElementById("homeBtn").addEventListener("click", () => flyHome(1.5));
+
+  /* ============================================================
+     ゆっくり見渡す（信号機用のゆるいパン）
+     ============================================================ */
+  let tour = false;
+  document.getElementById("tourBtn").addEventListener("click", (e) => {
+    tour = !tour;
+    e.currentTarget.classList.toggle("active", tour);
+  });
+  viewer.scene.preRender.addEventListener(() => {
+    if (tour && !plantMode) {
+      viewer.camera.setView({
+        orientation: { heading: viewer.camera.heading + 0.00045, pitch: viewer.camera.pitch, roll: 0 },
+      });
+    }
+  });
+
+  /* ============================================================
+     木を植える（データから）
+     ============================================================ */
+  const treeEntities = new Map(); // id -> {visitorId, count, comments...}
+  const sscc = viewer.scene.screenSpaceCameraController;
+
+  function groundHeightAt(lat, lon) {
+    const carto = Cesium.Cartographic.fromDegrees(lon, lat);
+    const h = viewer.scene.globe.getHeight(carto);
+    return h !== undefined ? h : 0;
+  }
+
+  function plantTree(visitorId, info) {
+    const groundH = groundHeightAt(info.lat, info.lon);
+    const scale = scaleForVisits(info.count);
+    const trunkH = 1.6 * scale;
+    const foliageR = 1.1 * scale;
+    const color = Cesium.Color.fromCssColorString(colorForCategory(info.dominant)).withAlpha(0.95);
+    const isMine = visitorId === MY_VISITOR_ID;
+
+    const trunk = viewer.entities.add({
+      id: "trunk_" + visitorId,
+      position: Cesium.Cartesian3.fromDegrees(info.lon, info.lat, groundH + trunkH / 2),
+      cylinder: {
+        length: trunkH, topRadius: 0.18 * scale, bottomRadius: 0.24 * scale,
+        material: Cesium.Color.fromCssColorString("#6b4a33"),
+      },
+    });
+
+    const foliage = viewer.entities.add({
+      id: "foliage_" + visitorId,
+      position: Cesium.Cartesian3.fromDegrees(info.lon, info.lat, groundH + trunkH + foliageR * 0.7),
+      ellipsoid: {
+        radii: new Cesium.Cartesian3(foliageR, foliageR, foliageR * 1.1),
+        material: color,
+        outline: false,
+      },
+    });
+
+    if (info.enthusiastic) {
+      viewer.entities.add({
+        id: "spark_" + visitorId,
+        position: Cesium.Cartesian3.fromDegrees(info.lon, info.lat, groundH + trunkH + foliageR * 2.2),
+        billboard: {
+          image: 'data:image/svg+xml,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><text x="14" y="20" font-size="22" text-anchor="middle">✦</text></svg>'
+          ),
+          scale: 1.0, disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+      });
+    }
+
+    if (isMine) {
+      viewer.entities.add({
+        id: "myring_" + visitorId,
+        position: Cesium.Cartesian3.fromDegrees(info.lon, info.lat, groundH + 0.05),
+        ellipse: {
+          semiMinorAxis: foliageR * 1.9, semiMajorAxis: foliageR * 1.9,
+          material: Cesium.Color.fromCssColorString("#ffd166").withAlpha(0.35),
+          outline: true, outlineColor: Cesium.Color.fromCssColorString("#ffd166"), outlineWidth: 2,
+          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+        },
+      });
+      viewer.entities.add({
+        id: "mylabel_" + visitorId,
+        position: Cesium.Cartesian3.fromDegrees(info.lon, info.lat, groundH + trunkH + foliageR * 2.6),
+        label: {
+          text: "★ あなたの木", font: "bold 15px sans-serif",
+          fillColor: Cesium.Color.fromCssColorString("#ffd166"), outlineColor: Cesium.Color.BLACK, outlineWidth: 3,
+          style: Cesium.LabelStyle.FILL_AND_OUTLINE, disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+      });
+    }
+
+    treeEntities.set(trunk.id, info);
+    treeEntities.set(foliage.id, info);
+  }
+
+  function grassSvg(hexColor) {
+    const c = hexColor.replace('#', '%23');
+    return 'data:image/svg+xml,' + encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">`
+      + `<path d="M10 20 C10 14 6 12 4 6" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round"/>`
+      + `<path d="M10 20 C10 13 10 11 10 3" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round"/>`
+      + `<path d="M10 20 C10 14 14 12 16 7" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round"/>`
+      + `</svg>`
+    );
+  }
+
+  // アンケート1件＝雑草1株（過去の回答も含めて全部残る。にぎわいの積み重ね担当）
+  function plantGrass(r) {
+    if (typeof r.lat !== "number" || typeof r.lon !== "number") return;
+    const cat = (r.goodPoints && r.goodPoints[0]) || "その他";
+    viewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(r.lon, r.lat, 0),
+      billboard: {
+        image: grassSvg(colorForCategory(cat)),
+        scale: 0.7 + Math.random() * 0.3,
+        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+    });
+  }
+
+  function buildForest(data) {
+    // まず全回答ぶんの雑草を生やす（木より先に描くことで、木の下に埋もれる形にする）
+    data.responses.forEach(plantGrass);
+
+    const byVisitor = new Map();
+    for (const r of data.responses) {
+      if (!byVisitor.has(r.visitorId)) byVisitor.set(r.visitorId, []);
+      byVisitor.get(r.visitorId).push(r);
+    }
+
+    let regularsCount = 0;
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    for (const [visitorId, records] of byVisitor) {
+      const catCount = new Map();
+      let enthusiastic = false;
+      records.forEach((r) => {
+        (r.goodPoints || []).forEach((p) => catCount.set(p, (catCount.get(p) || 0) + 1));
+        if (r.revisit && r.revisit.includes("ぜひ")) enthusiastic = true;
+      });
+      let dominant = "その他", best = -1;
+      for (const [cat, c] of catCount) if (c > best) { best = c; dominant = cat; }
+
+      const withLocRecords = records.filter((r) => typeof r.lat === "number" && typeof r.lon === "number");
+      withLocRecords.sort((a, b) => (a.timestamp || a.date || "").localeCompare(b.timestamp || b.date || ""));
+      const withLoc = withLocRecords[withLocRecords.length - 1]; // 一番新しい場所を採用（植え替え対応）
+      const loc = withLoc ? { lat: withLoc.lat, lon: withLoc.lon } : fallbackLocation(visitorId);
+
+      const info = { visitorId, count: records.length, dominant, enthusiastic, lat: loc.lat, lon: loc.lon,
+        comments: records.map((r) => r.comment).filter(Boolean) };
+      plantTree(visitorId, info);
+
+      if (records.length >= 2) regularsCount++;
+    }
+
+    document.getElementById("statTotal").textContent = data.responses.length;
+    document.getElementById("statToday").textContent = data.responses.filter((r) => r.date === todayStr).length;
+    document.getElementById("statVisitors").textContent = byVisitor.size;
+
+    const allComments = data.responses.map((r) => r.comment).filter((c) => c && c.trim());
+    startTicker(allComments);
+  }
+
+  let tickerTimer = null;
+  function startTicker(comments) {
+    const el = document.getElementById("ticker");
+    if (tickerTimer) clearInterval(tickerTimer);
+    if (!comments.length) { el.classList.remove("show"); return; }
+    let i = 0;
+    const show = () => { el.innerHTML = `“ ${comments[i % comments.length]} ”`; el.classList.add("show"); i++; };
+    show();
+    tickerTimer = setInterval(show, 5500);
+  }
+
+  /* ============================================================
+     木をタップして詳細を見る
+     ============================================================ */
+  const infoCard = document.getElementById("infoCard");
+  let infoHideTimer = null;
+  const pickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+  pickHandler.setInputAction((click) => {
+    if (plantMode) return;
+    const picked = viewer.scene.pick(click.position);
+    if (!picked || !picked.id) return;
+    const info = treeEntities.get(picked.id.id);
+    if (!info) return;
+    const mine = info.visitorId === MY_VISITOR_ID ? `<div class="mine">★ これはあなたの木やで</div>` : "";
+    infoCard.innerHTML = `
+      <div><b>来場 ${info.count}回</b> の木</div>
+      <span class="tag" style="background:${colorForCategory(info.dominant)}">${info.dominant}</span>
+      ${info.enthusiastic ? `<span class="tag" style="background:#ffd166">✦また来たい</span>` : ""}
+      ${mine}
+    `;
+    infoCard.classList.add("show");
+    clearTimeout(infoHideTimer);
+    infoHideTimer = setTimeout(() => infoCard.classList.remove("show"), 5000);
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+  document.getElementById("infoBtn").addEventListener("click", (e) => {
+    document.getElementById("legend").classList.toggle("open");
+    e.currentTarget.classList.toggle("active");
+  });
+
+  /* ============================================================
+     植える場所を選ぶモード
+     ============================================================ */
+  let plantMode = false;
+  let previewEntity = null;
+  let pendingLoc = null;
+  let prePlantCamera = null;
+
+  const plantHint = document.getElementById("plantHint");
+  const plantConfirmBar = document.getElementById("plantConfirmBar");
+
+  function enterPlantMode() {
+    plantMode = true;
+    plantHint.classList.add("show");
+    const pos = viewer.camera.positionCartographic;
+    prePlantCamera = { lon: pos.longitude, lat: pos.latitude, height: pos.height, heading: viewer.camera.heading, pitch: viewer.camera.pitch };
+    viewer.camera.setView({
+      destination: Cesium.Cartesian3.fromRadians(pos.longitude, pos.latitude, Math.max(pos.height, 400)),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+    });
+    sscc.enableTilt = false;
+    sscc.enableRotate = false;
+  }
+  function exitPlantMode() {
+    plantMode = false;
+    plantHint.classList.remove("show");
+    plantConfirmBar.classList.remove("show");
+    sscc.enableTilt = true;
+    sscc.enableRotate = true;
+    if (previewEntity) { viewer.entities.remove(previewEntity); previewEntity = null; }
+    if (prePlantCamera) {
+      viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromRadians(prePlantCamera.lon, prePlantCamera.lat, prePlantCamera.height),
+        orientation: { heading: prePlantCamera.heading, pitch: prePlantCamera.pitch, roll: 0 },
+      });
+    }
+  }
+
+  pickHandler.setInputAction((click) => {
+    if (!plantMode) return;
+    const ray = viewer.camera.getPickRay(click.position);
+    if (!ray) return;
+    const cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+    if (!cartesian) return;
+    const carto = Cesium.Cartographic.fromCartesian(cartesian);
+    pendingLoc = { lat: Cesium.Math.toDegrees(carto.latitude), lon: Cesium.Math.toDegrees(carto.longitude) };
+
+    if (previewEntity) viewer.entities.remove(previewEntity);
+    previewEntity = viewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(pendingLoc.lon, pendingLoc.lat, 0),
+      point: { pixelSize: 16, color: Cesium.Color.fromCssColorString("#ffd166"), outlineColor: Cesium.Color.BLACK, outlineWidth: 2,
+        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+    });
+    plantConfirmBar.classList.add("show");
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+  /* ============================================================
+     アンケート導線
+     ============================================================ */
+  const plantSheet = document.getElementById("plantSheet");
+  const plantSheetText = document.getElementById("plantSheetText");
+  const plantSheetRow = document.getElementById("plantSheetRow");
+  const ctaBtn = document.getElementById("ctaBtn");
+
+  function openSurvey(loc) {
+    const url = `${CONFIG.formBaseUrl}?usp=pp_url`
+      + `&${CONFIG.formVisitorIdEntry}=${encodeURIComponent(MY_VISITOR_ID)}`
+      + `&${CONFIG.formLatEntry}=${encodeURIComponent(loc.lat.toFixed(6))}`
+      + `&${CONFIG.formLonEntry}=${encodeURIComponent(loc.lon.toFixed(6))}`;
+    window.open(url, "_blank");
+  }
+
+  function openPlantSheet() {
+    plantSheetRow.innerHTML = "";
+    if (window.__myLoc) {
+      plantSheetText.textContent = "前回と同じ場所でええ？変えたい時はいつでもどうぞ。";
+      addSheetBtn("✅ 前と同じでOK", true, () => { plantSheet.classList.remove("show"); openSurvey(window.__myLoc); });
+      addSheetBtn("📍 場所を変える", false, () => { plantSheet.classList.remove("show"); enterPlantMode(); });
+      addSheetBtn("🎲 おまかせに変える", false, () => {
+        plantSheet.classList.remove("show");
+        const loc = fallbackLocation(MY_VISITOR_ID + "_" + Date.now());
+        window.__myLoc = loc;
+        openSurvey(loc);
+      });
+    } else {
+      plantSheetText.textContent = "初めての来場やね！自分の木をどこに植えるか選べるで。分からんかったら「おまかせ」でOK。";
+      addSheetBtn("📍 地図から選ぶ", true, () => { plantSheet.classList.remove("show"); enterPlantMode(); });
+      addSheetBtn("🎲 おまかせ", false, () => {
+        plantSheet.classList.remove("show");
+        const loc = fallbackLocation(MY_VISITOR_ID + "_" + Date.now());
+        window.__myLoc = loc;
+        openSurvey(loc);
+      });
+    }
+    plantSheet.classList.add("show");
+  }
+  function addSheetBtn(label, primary, onClick) {
+    const b = document.createElement("button");
+    b.className = "sheetBtn" + (primary ? " primary" : "");
+    b.textContent = label;
+    b.addEventListener("click", onClick);
+    plantSheetRow.appendChild(b);
+  }
+
+  ctaBtn.addEventListener("click", () => {
+    if (!MY_VISITOR_ID) return;
+    openPlantSheet();
+  });
+
+  document.getElementById("plantConfirmBtn").addEventListener("click", () => {
+    if (!pendingLoc) return;
+    window.__myLoc = pendingLoc;
+    exitPlantMode();
+    openSurvey(pendingLoc);
+  });
+  document.getElementById("plantCancelBtn").addEventListener("click", () => {
+    pendingLoc = null;
+    exitPlantMode();
+  });
+
+  /* ============================================================
+     起動
+     ============================================================ */
+  const data = await loadData();
   const knownIds = new Set(data.responses.map((r) => r.visitorId));
   MY_VISITOR_ID = getOrCreateVisitorId(knownIds);
-  surveyBtn.disabled = false;
 
-  buildCity(data);
+  const mineRecords = data.responses.filter((r) => r.visitorId === MY_VISITOR_ID && typeof r.lat === "number");
+  mineRecords.sort((a, b) => (a.timestamp || a.date || "").localeCompare(b.timestamp || b.date || ""));
+  const mine = mineRecords[mineRecords.length - 1];
+  if (mine) window.__myLoc = { lat: mine.lat, lon: mine.lon };
+
+  buildForest(data);
+  ctaBtn.disabled = false;
+  ctaBtn.textContent = "📝 アンケートに答える";
+
   document.getElementById("loading").style.opacity = "0";
   setTimeout(() => (document.getElementById("loading").style.display = "none"), 500);
-});
-
-document.getElementById("infoBtn").addEventListener("click", (e) => {
-  document.getElementById("legend").classList.toggle("open");
-  e.currentTarget.classList.toggle("active");
-});
-
-document.getElementById("rotateBtn").addEventListener("click", (e) => {
-  controls.autoRotate = !controls.autoRotate;
-  e.currentTarget.classList.toggle("active", controls.autoRotate);
-});
-
-addEventListener("resize", () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-  composer.setSize(innerWidth, innerHeight);
-});
-
-/* ============================================================
-   建物タップで詳細カードを表示（ドラッグ操作と区別するため
-   「動いた距離が小さい・短時間」だけをタップとみなす）
-   ============================================================ */
-const raycaster = new THREE.Raycaster();
-const pointerNDC = new THREE.Vector2();
-const infoCard = document.getElementById("infoCard");
-let pointerDownAt = null;
-let pointerDownPos = null;
-let infoHideTimer = null;
-
-function showInfoCard(hit) {
-  const d = hit.userData;
-  const mineTag = d.isMine ? `<div class="mine">★ これはあなたの建物やで</div>` : "";
-  infoCard.innerHTML = `
-    <div><b>${d.date.slice(5).replace("-", "/")}</b> の来場記録</div>
-    <span class="tag" style="background:#ffd166">${d.revisit || "―"}</span>
-    <span class="tag" style="background:#62c3ff">${d.goodPoint || "―"}</span>
-    ${mineTag}
-  `;
-  infoCard.classList.add("show");
-  clearTimeout(infoHideTimer);
-  infoHideTimer = setTimeout(() => infoCard.classList.remove("show"), 5000);
-}
-
-function onPointerDown(ev) {
-  const p = ev.touches ? ev.touches[0] : ev;
-  pointerDownAt = performance.now();
-  pointerDownPos = { x: p.clientX, y: p.clientY };
-}
-function onPointerUp(ev) {
-  if (!pointerDownAt) return;
-  const p = ev.changedTouches ? ev.changedTouches[0] : ev;
-  const dt = performance.now() - pointerDownAt;
-  const dx = p.clientX - pointerDownPos.x;
-  const dy = p.clientY - pointerDownPos.y;
-  const moved = Math.hypot(dx, dy);
-  pointerDownAt = null;
-  if (dt > 350 || moved > 8) return; // ドラッグ操作とみなして無視
-
-  pointerNDC.x = (p.clientX / innerWidth) * 2 - 1;
-  pointerNDC.y = -(p.clientY / innerHeight) * 2 + 1;
-  raycaster.setFromCamera(pointerNDC, camera);
-  const hits = raycaster.intersectObjects(pickables, false);
-  if (hits.length) showInfoCard(hits[0].object);
-}
-renderer.domElement.addEventListener("pointerdown", onPointerDown);
-renderer.domElement.addEventListener("pointerup", onPointerUp);
-
-const clock = new THREE.Clock();
-function animate() {
-  requestAnimationFrame(animate);
-  const t = clock.getElapsedTime();
-
-  fireflies.forEach((f) => {
-    const path = f.userData.path;
-    if (path.length < 2) return;
-    f.userData.t += 0.15 * 0.016;
-    const tt = f.userData.t % 1;
-    const idx = tt * (path.length - 1);
-    const i0 = Math.floor(idx);
-    const i1 = Math.min(i0 + 1, path.length - 1);
-    const frac = idx - i0;
-    f.position.lerpVectors(path[i0], path[i1], frac);
-    f.position.y += Math.sin(t * 3 + i0) * 0.15;
-  });
-
-  pulsingRings.forEach((r) => {
-    r.material.opacity = 0.55 + Math.sin(t * 2.4) * 0.45;
-    const s = 1 + Math.sin(t * 2.4) * 0.06;
-    r.scale.set(s, 1, s);
-  });
-
-  controls.update();
-  composer.render();
-}
-animate();
+})();
 </script>
 </body>
 </html>
