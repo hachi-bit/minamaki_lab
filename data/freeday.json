@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-17T08:43:44.281Z",
+  "lastUpdated": "2026-07-17T09:07:06.212Z",
   "responses": [
     {
       "id": "r_ad663065",
@@ -59,6 +59,18 @@
       "latitude": 35.436994,
       "longitude": 139.522032,
       "revisit": "わからない",
+      "goodPoints": [
+        "その他"
+      ]
+    },
+    {
+      "id": "r_7f5183b2",
+      "timestamp": "2026-07-17T09:07:05.183Z",
+      "date": "2026-07-17",
+      "visitorId": "v_9a04be793zo",
+      "latitude": 35.436994,
+      "longitude": 139.522032,
+      "revisit": "あまり…",
       "goodPoints": [
         "その他"
       ]
