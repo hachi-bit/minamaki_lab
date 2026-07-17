@@ -443,26 +443,28 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
 
   function grassSvg(hexColor) {
     const c = hexColor.replace('#', '%23');
-    return 'data:image/svg+xml,' + encodeURIComponent(
+    return ('data:image/svg+xml,' + encodeURIComponent(
       `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 20 20">`
       + `<path d="M10 20 C10 14 6 12 4 6" stroke="${c}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`
       + `<path d="M10 20 C10 13 10 11 10 3" stroke="${c}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`
       + `<path d="M10 20 C10 14 14 12 16 7" stroke="${c}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`
       + `</svg>`
-    );
+    )).replace(/%2523/g, '%23'); // %23の二重エンコードを修正（これをやらんと色が無効値になって透明になる）
   }
 
   // アンケート1件＝雑草1株（過去の回答も含めて全部残る。にぎわいの積み重ね担当）
+  // サイズは木の「苗木（1回目）」の幹の高さ（約0.8m）に合わせた実寸指定
   async function plantGrass(r) {
     if (typeof r.lat !== "number" || typeof r.lon !== "number") return;
     const cat = (r.goodPoints && r.goodPoints[0]) || "その他";
     const groundH = await groundHeightAt(r.lat, r.lon);
     addDebugPillar(r.lat, r.lon, groundH, "#ff6fae"); // 雑草＝ピンクの柱
+    const size = 0.75 + Math.random() * 0.25; // メートル
     viewer.entities.add({
       position: Cesium.Cartesian3.fromDegrees(r.lon, r.lat, groundH),
       billboard: {
         image: grassSvg(colorForCategory(cat)),
-        scale: 1.3 + Math.random() * 0.4,
+        width: size, height: size, sizeInMeters: true,
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
