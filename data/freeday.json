@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-17T04:29:08.337Z",
+  "lastUpdated": "2026-07-17T07:13:17.941Z",
   "responses": [
     {
       "id": "r_ad663065",
@@ -23,6 +23,18 @@
       "revisit": "はい、ぜひ！",
       "goodPoints": [
         "他の会員さんと交流できた"
+      ]
+    },
+    {
+      "id": "r_ef82644c",
+      "timestamp": "2026-07-17T07:13:17.458Z",
+      "date": "2026-07-17",
+      "visitorId": "v_6aa78fdbqtr",
+      "latitude": 35.437166,
+      "longitude": 139.521358,
+      "revisit": "あまり…",
+      "goodPoints": [
+        "特になし"
       ]
     }
   ]
