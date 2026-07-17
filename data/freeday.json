@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-17T07:13:17.941Z",
+  "lastUpdated": "2026-07-17T08:43:06.062Z",
   "responses": [
     {
       "id": "r_ad663065",
@@ -34,6 +34,20 @@
       "longitude": 139.521358,
       "revisit": "あまり…",
       "goodPoints": [
+        "特になし"
+      ]
+    },
+    {
+      "id": "r_51432b3c",
+      "timestamp": "2026-07-17T08:43:05.442Z",
+      "date": "2026-07-17",
+      "visitorId": "v_9a04be793zo",
+      "latitude": 35.436994,
+      "longitude": 139.522032,
+      "revisit": "はい、ぜひ！",
+      "goodPoints": [
+        "飲食しながらのんびりできた",
+        "子どもと一緒に過ごせた",
         "特になし"
       ]
     }
