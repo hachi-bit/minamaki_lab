@@ -357,7 +357,7 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
   // ── デバッグ用：植えた場所に光の柱を立てる ──────────────────
   // 木や雑草が「実は埋まってるだけ」なのか「そもそも作られてない」のかを
   // 見分けるための目印。原因が分かったら DEBUG_PILLARS を false にすればOK。
-  const DEBUG_PILLARS = true;
+  const DEBUG_PILLARS = false; // 木・雑草が正しい位置に出ることを確認できたのでOFF
   function addDebugPillar(lat, lon, groundH, colorHex) {
     if (!DEBUG_PILLARS) return;
     viewer.entities.add({
@@ -408,7 +408,7 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
         position: Cesium.Cartesian3.fromDegrees(info.lon, info.lat, groundH + trunkH + foliageR * 2.2),
         billboard: {
           image: 'data:image/svg+xml,' + encodeURIComponent(
-            '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><text x="14" y="20" font-size="22" text-anchor="middle">✦</text></svg>'
+            '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><text x="14" y="20" font-size="24" text-anchor="middle" fill="#ffd166" stroke="#000000" stroke-width="0.5">✦</text></svg>'
           ),
           scale: 1.0, disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
