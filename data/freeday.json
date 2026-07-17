@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-17T03:37:36.652Z",
+  "lastUpdated": "2026-07-17T04:22:12.222Z",
   "responses": [
     {
       "id": "r_backfill_1",
@@ -47,6 +47,18 @@
       "visitorId": "v_6aa78fdbqtr",
       "latitude": null,
       "longitude": null,
+      "revisit": "はい、ぜひ！",
+      "goodPoints": [
+        "他の会員さんと交流できた"
+      ]
+    },
+    {
+      "id": "r_ad663065",
+      "timestamp": "2026-07-17T04:22:11.348Z",
+      "date": "2026-07-15",
+      "visitorId": "v_9a04be793zo",
+      "latitude": 35.437709,
+      "longitude": 139.522013,
       "revisit": "はい、ぜひ！",
       "goodPoints": [
         "他の会員さんと交流できた"
