@@ -452,16 +452,28 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
     )).replace(/%2523/g, '%23'); // %23の二重エンコードを修正（これをやらんと色が無効値になって透明になる）
   }
 
+  // 回答idから決まる、固定の小さなズレ（同じ場所で何回答えても重ならず、
+  // ちょっとずつ密度が増えて見えるようにするため。リロードしても位置は変わらない）
+  function jitterFor(seedKey) {
+    let h = 0;
+    for (const c of String(seedKey)) h = (h * 37 + c.charCodeAt(0)) >>> 0;
+    const angle = (h % 360) * Math.PI / 180;
+    const dist = 0.15 + ((h >> 8) % 100) / 100 * 0.55; // 0.15〜0.7m
+    return { angle, dist };
+  }
+
   // アンケート1件＝雑草1株（過去の回答も含めて全部残る。にぎわいの積み重ね担当）
   // サイズは木の「苗木（1回目）」の幹の高さ（約0.8m）に合わせた実寸指定
   async function plantGrass(r) {
     if (typeof r.lat !== "number" || typeof r.lon !== "number") return;
     const cat = (r.goodPoints && r.goodPoints[0]) || "その他";
-    const groundH = await groundHeightAt(r.lat, r.lon);
-    addDebugPillar(r.lat, r.lon, groundH, "#ff6fae"); // 雑草＝ピンクの柱
+    const j = jitterFor(r.id || (r.visitorId + "_" + (r.timestamp || r.date)));
+    const loc = offsetLatLon(r.lat, r.lon, j.angle, j.dist);
+    const groundH = await groundHeightAt(loc.lat, loc.lon);
+    addDebugPillar(loc.lat, loc.lon, groundH, "#ff6fae"); // 雑草＝ピンクの柱
     const size = 0.75 + Math.random() * 0.25; // メートル
     viewer.entities.add({
-      position: Cesium.Cartesian3.fromDegrees(r.lon, r.lat, groundH),
+      position: Cesium.Cartesian3.fromDegrees(loc.lon, loc.lat, groundH),
       billboard: {
         image: grassSvg(colorForCategory(cat)),
         width: size, height: size, sizeInMeters: true,
