@@ -234,6 +234,13 @@ const SAMPLE_FALLBACK = {
   ],
 };
 
+// 緯度経度が数値でも文字列（"35.43..."）でも、ちゃんと数値として扱えるようにする
+function toNum(v) {
+  if (typeof v === "number" && isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "" && isFinite(Number(v))) return Number(v);
+  return null;
+}
+
 async function loadData() {
   try {
     const bust = `${CONFIG.dataUrl}${CONFIG.dataUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
@@ -241,7 +248,11 @@ async function loadData() {
     if (!res.ok) throw new Error("fetch failed");
     const json = await res.json();
     if (!json.responses || !json.responses.length) throw new Error("empty");
-    json.responses.forEach((r) => { if (!Array.isArray(r.goodPoints)) r.goodPoints = r.goodPoints ? [r.goodPoints] : ["特になし"]; });
+    json.responses.forEach((r) => {
+      if (!Array.isArray(r.goodPoints)) r.goodPoints = r.goodPoints ? [r.goodPoints] : ["特になし"];
+      r.lat = toNum(r.lat ?? r.latitude);
+      r.lon = toNum(r.lon ?? r.longitude);
+    });
     return json;
   } catch (e) {
     console.warn("freeday.json が読めなかったのでサンプルを表示するのら:", e.message);
@@ -645,6 +656,22 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
     plantSheetRow.appendChild(b);
   }
 
+  // タップして「決定」した瞬間、サーバー往復を待たずその場に確認マーカーを出す
+  // （タップ→座標変換が正しいかを、GAS/JSONの往復と切り離して確認できるようにする）
+  async function previewPlantedSpot(loc) {
+    const groundH = await groundHeightAt(loc.lat, loc.lon);
+    addDebugPillar(loc.lat, loc.lon, groundH, "#4ade80"); // 確定直後＝緑の柱
+    viewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(loc.lon, loc.lat, groundH),
+      point: { pixelSize: 20, color: Cesium.Color.fromCssColorString("#4ade80"),
+        outlineColor: Cesium.Color.BLACK, outlineWidth: 3, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+      label: { text: "ここに決定！(この端末だけのプレビュー)", font: "bold 13px sans-serif",
+        fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 3,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset: new Cesium.Cartesian2(0, -30),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY },
+    });
+  }
+
   ctaBtn.addEventListener("click", () => {
     if (!MY_VISITOR_ID) return;
     openPlantSheet();
@@ -653,6 +680,7 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
   document.getElementById("plantConfirmBtn").addEventListener("click", () => {
     if (!pendingLoc) return;
     window.__myLoc = pendingLoc;
+    previewPlantedSpot(pendingLoc);
     exitPlantMode();
     openSurvey(pendingLoc);
   });
