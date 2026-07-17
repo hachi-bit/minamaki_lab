@@ -177,8 +177,9 @@ const BUILDING_URLS = [
   'https://api.plateauview.mlit.go.jp/datacatalog/3dtiles/14116-bldg-lod1-texture-2024/tileset.json', // 泉区
 ];
 
-// 「おまかせ」でランダム配置する時の中心と半径（本番位置が決まったらINITIAL_CAMERAと合わせて調整）
-const PLANT_CENTER = { lon: INITIAL_CAMERA.lon, lat: INITIAL_CAMERA.lat };
+// 「おまかせ」でランダム配置する時の中心と半径
+// （起動時に、デフォルト視点が実際に見下ろしている地面の座標へ更新される）
+let PLANT_CENTER = { lon: INITIAL_CAMERA.lon, lat: INITIAL_CAMERA.lat };
 const PLANT_RADIUS_M = 150;
 
 const GOOD_POINT_COLORS = {
@@ -315,6 +316,23 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
       duration,
     });
   }
+
+  // デフォルト視点が実際に見下ろしている地面の座標を、起動時に1回だけ正確に計算する
+  // （瞬間的にカメラを合わせて計測してから、すぐ通常のflyToに切り替える）
+  let PLANT_CENTER_CARTO = Cesium.Cartographic.fromDegrees(INITIAL_CAMERA.lon, INITIAL_CAMERA.lat);
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(INITIAL_CAMERA.lon, INITIAL_CAMERA.lat, INITIAL_CAMERA.height),
+    orientation: { heading: Cesium.Math.toRadians(INITIAL_CAMERA.heading), pitch: Cesium.Math.toRadians(INITIAL_CAMERA.pitch), roll: 0 },
+  });
+  const initialGroundHit = getLookAtGroundPosition();
+  if (initialGroundHit) {
+    PLANT_CENTER_CARTO = Cesium.Cartographic.fromCartesian(initialGroundHit);
+    PLANT_CENTER = {
+      lon: Cesium.Math.toDegrees(PLANT_CENTER_CARTO.longitude),
+      lat: Cesium.Math.toDegrees(PLANT_CENTER_CARTO.latitude),
+    };
+  }
+
   flyHome(2);
   document.getElementById("homeBtn").addEventListener("click", () => flyHome(1.5));
 
@@ -608,13 +626,10 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
     const pos = viewer.camera.positionCartographic;
     prePlantCamera = { lon: pos.longitude, lat: pos.latitude, height: pos.height, heading: viewer.camera.heading, pitch: viewer.camera.pitch };
 
-    const groundHit = getLookAtGroundPosition();
-    const targetCarto = groundHit
-      ? Cesium.Cartographic.fromCartesian(groundHit)
-      : Cesium.Cartographic.fromDegrees(INITIAL_CAMERA.lon, INITIAL_CAMERA.lat);
-
+    // 「今カメラがどこを見てるか」ではなく、起動時に確定した固定の基準点を使う
+    // （こうしないと、カメラの向き次第で毎回微妙にズレてしまうため）
     viewer.camera.setView({
-      destination: Cesium.Cartesian3.fromRadians(targetCarto.longitude, targetCarto.latitude, Math.max(pos.height, 400)),
+      destination: Cesium.Cartesian3.fromRadians(PLANT_CENTER_CARTO.longitude, PLANT_CENTER_CARTO.latitude, Math.max(pos.height, 400)),
       orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
     });
     sscc.enableTilt = false; // 見下ろし角度は固定
