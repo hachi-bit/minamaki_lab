@@ -169,7 +169,7 @@ const PLATEAU_ION_TOKEN =
 const TERRAIN_ASSET_ID = 2488101;
 
 // テスト用の初期カメラ（本番の施設位置が決まったらここを書き換える）
-const INITIAL_CAMERA = { lon: 139.518853, lat: 35.431628, height: 500.1, heading: 24.10, pitch: -30.23, roll: 0.00 };
+const INITIAL_CAMERA = { lon: 139.518853, lat: 35.431628, height: 260, heading: 24.10, pitch: -52, roll: 0.00 };
 
 // 旭区・泉区（南万騎が原／緑園都市エリア）の建物3D Tiles
 const BUILDING_URLS = [
@@ -421,24 +421,39 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
         position: Cesium.Cartesian3.fromDegrees(info.lon, info.lat, groundH + 0.05),
         ellipse: {
           semiMinorAxis: foliageR * 1.9, semiMajorAxis: foliageR * 1.9,
-          material: Cesium.Color.fromCssColorString("#ffd166").withAlpha(0.35),
+          material: Cesium.Color.fromCssColorString("#ffd166").withAlpha(0.3),
           outline: true, outlineColor: Cesium.Color.fromCssColorString("#ffd166"), outlineWidth: 2,
           heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
         },
       });
+      // 文字ラベルは邪魔なので、代わりに木の周りに光るオーラを出す
       viewer.entities.add({
-        id: "mylabel_" + visitorId,
-        position: Cesium.Cartesian3.fromDegrees(info.lon, info.lat, groundH + trunkH + foliageR * 2.6),
-        label: {
-          text: "★ あなたの木", font: "bold 15px sans-serif",
-          fillColor: Cesium.Color.fromCssColorString("#ffd166"), outlineColor: Cesium.Color.BLACK, outlineWidth: 3,
-          style: Cesium.LabelStyle.FILL_AND_OUTLINE, disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        id: "myaura_" + visitorId,
+        position: Cesium.Cartesian3.fromDegrees(info.lon, info.lat, groundH + trunkH + foliageR * 0.7),
+        billboard: {
+          image: auraSvg(),
+          width: foliageR * 4.5, height: foliageR * 4.5, sizeInMeters: true,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
       });
     }
 
     treeEntities.set(trunk.id, info);
     treeEntities.set(foliage.id, info);
+  }
+
+  // 自分の木の周りに出す、ふわっと光るオーラ（中心が明るく、外側にいくほど透明になる）
+  function auraSvg() {
+    return 'data:image/svg+xml,' + encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">`
+      + `<defs><radialGradient id="g" cx="50%" cy="50%" r="50%">`
+      + `<stop offset="0%" stop-color="#ffd166" stop-opacity="0.8"/>`
+      + `<stop offset="55%" stop-color="#ffd166" stop-opacity="0.22"/>`
+      + `<stop offset="100%" stop-color="#ffd166" stop-opacity="0"/>`
+      + `</radialGradient></defs>`
+      + `<circle cx="60" cy="60" r="60" fill="url(#g)"/>`
+      + `</svg>`
+    );
   }
 
   function grassSvg(hexColor) {
@@ -577,13 +592,29 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
   const plantHint = document.getElementById("plantHint");
   const plantConfirmBar = document.getElementById("plantConfirmBar");
 
+  // カメラが画面中央で実際に見ている地面の位置を求める
+  // （カメラ自身の緯度経度をそのまま使うと、斜めから見てる分だけズレるため）
+  function getLookAtGroundPosition() {
+    const ray = viewer.camera.getPickRay(new Cesium.Cartesian2(
+      viewer.scene.canvas.clientWidth / 2, viewer.scene.canvas.clientHeight / 2
+    ));
+    if (!ray) return null;
+    return viewer.scene.globe.pick(ray, viewer.scene) || null;
+  }
+
   function enterPlantMode() {
     plantMode = true;
     plantHint.classList.add("show");
     const pos = viewer.camera.positionCartographic;
     prePlantCamera = { lon: pos.longitude, lat: pos.latitude, height: pos.height, heading: viewer.camera.heading, pitch: viewer.camera.pitch };
+
+    const groundHit = getLookAtGroundPosition();
+    const targetCarto = groundHit
+      ? Cesium.Cartographic.fromCartesian(groundHit)
+      : Cesium.Cartographic.fromDegrees(INITIAL_CAMERA.lon, INITIAL_CAMERA.lat);
+
     viewer.camera.setView({
-      destination: Cesium.Cartesian3.fromRadians(pos.longitude, pos.latitude, Math.max(pos.height, 400)),
+      destination: Cesium.Cartesian3.fromRadians(targetCarto.longitude, targetCarto.latitude, Math.max(pos.height, 400)),
       orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
     });
     sscc.enableTilt = false; // 見下ろし角度は固定
