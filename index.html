@@ -94,6 +94,13 @@
     z-index:20; display:none; }
   #camPanel.show{ display:block; }
 
+  #debugLogPanel{ position:fixed; left:16px; right:16px; bottom:150px; top:70px; background:rgba(4,6,15,0.95);
+    border:1px solid var(--border); border-radius:12px; padding:10px 12px; backdrop-filter:blur(6px);
+    z-index:30; display:none; overflow:hidden; }
+  #debugLogPanel.show{ display:flex; flex-direction:column; }
+  #debugLogBody{ flex:1; overflow-y:auto; font-family:monospace; font-size:10.5px; color:#c7d6f5;
+    white-space:pre-wrap; word-break:break-all; margin:0; }
+
   @media (max-width:520px){
     #legend{ max-width:78vw; }
     .stat{ min-width:48px; padding:6px 9px; }
@@ -141,6 +148,18 @@
   <button class="iconBtn" id="tourBtn" title="ゆっくり見渡す">🔄</button>
   <button class="iconBtn" id="homeBtn" title="初期位置">🏠</button>
   <button class="iconBtn" id="camPanelToggleBtn" title="カメラ座標を調べる">📷</button>
+  <button class="iconBtn" id="debugLogToggleBtn" title="ログを見る">🐞</button>
+</div>
+
+<div id="debugLogPanel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+    <span style="font-size:11px;color:var(--sub);">🐞 ログ</span>
+    <div style="display:flex;gap:6px;">
+      <button class="sheetBtn" id="debugLogCopyBtn" style="padding:5px 10px;font-size:11px;">📋 コピー</button>
+      <button class="sheetBtn" id="debugLogCloseBtn" style="padding:5px 10px;font-size:11px;">閉じる</button>
+    </div>
+  </div>
+  <pre id="debugLogBody"></pre>
 </div>
 
 <div id="camPanel">
@@ -298,6 +317,29 @@ function offsetLatLon(lat, lon, angleRad, distM) {
    ============================================================ */
 Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
 
+/* ============================================================
+   デバッグログ（画面上に表示・コピーできるようにする）
+   console.log/warn/error を横取りして貯めておく
+   ============================================================ */
+const DEBUG_LOGS = [];
+function logDebug(msg) {
+  const line = `[${new Date().toLocaleTimeString("ja-JP")}] ${msg}`;
+  DEBUG_LOGS.push(line);
+  renderDebugLog();
+}
+["log", "warn", "error"].forEach((level) => {
+  const orig = console[level].bind(console);
+  console[level] = (...args) => {
+    orig(...args);
+    DEBUG_LOGS.push(`[${new Date().toLocaleTimeString("ja-JP")}] (${level}) ` + args.map(String).join(" "));
+    renderDebugLog();
+  };
+});
+function renderDebugLog() {
+  const el = document.getElementById("debugLogBody");
+  if (el) el.textContent = DEBUG_LOGS.join("\n");
+}
+
 (async () => {
   const viewer = new Cesium.Viewer('cesiumContainer', {
     baseLayer: false,
@@ -442,6 +484,8 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
   }
 
   async function plantTree(visitorId, info) {
+   try {
+    logDebug(`木を植える試行: visitorId=${visitorId} count=${info.count} lat=${info.lat} lon=${info.lon} dominant=${info.dominant}`);
     const groundH = await groundHeightAt(info.lat, info.lon);
     addDebugPillar(info.lat, info.lon, groundH, "#38bdf8"); // 木＝水色の柱
     const scale = scaleForVisits(info.count);
@@ -507,6 +551,10 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
 
     treeEntities.set(trunk.id, info);
     treeEntities.set(foliage.id, info);
+    logDebug(`木を植えた: visitorId=${visitorId} 地面高さ=${groundH.toFixed(1)}m`);
+   } catch (e) {
+    logDebug(`⚠️木の生成に失敗: visitorId=${visitorId} lat=${info.lat} lon=${info.lon} エラー=${e && e.message}`);
+   }
   }
 
   // 自分の木の周りに出す、ふわっと光るオーラ（中心が明るく、外側にいくほど透明になる）
@@ -547,7 +595,11 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
   // アンケート1件＝雑草1株（過去の回答も含めて全部残る。にぎわいの積み重ね担当）
   // サイズは木の「苗木（1回目）」の幹の高さ（約0.8m）に合わせた実寸指定
   async function plantGrass(r) {
-    if (typeof r.lat !== "number" || typeof r.lon !== "number") return;
+   try {
+    if (typeof r.lat !== "number" || typeof r.lon !== "number") {
+      logDebug(`雑草スキップ（位置情報なし）: id=${r.id} date=${r.date} lat=${r.lat}(${typeof r.lat}) lon=${r.lon}(${typeof r.lon})`);
+      return;
+    }
     const cat = (r.goodPoints && r.goodPoints[0]) || "その他";
     const j = jitterFor(r.id || (r.visitorId + "_" + (r.timestamp || r.date)));
     const loc = offsetLatLon(r.lat, r.lon, j.angle, j.dist);
@@ -563,9 +615,18 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
     });
+    logDebug(`雑草を生やした: id=${r.id} date=${r.date}`);
+   } catch (e) {
+    logDebug(`⚠️雑草の生成に失敗: id=${r.id} date=${r.date} lat=${r.lat} lon=${r.lon} エラー=${e && e.message}`);
+   }
   }
 
   async function buildForest(data) {
+    logDebug(`buildForest開始: 総件数=${data.responses.length}`);
+    data.responses.forEach((r) => {
+      logDebug(`  ・id=${r.id} date=${r.date} visitorId=${r.visitorId} lat=${r.lat}(${typeof r.lat}) lon=${r.lon}(${typeof r.lon})`);
+    });
+
     // まず全回答ぶんの雑草を生やす（木より先に描くことで、木の下に埋もれる形にする）
     await Promise.all(data.responses.map(plantGrass));
 
@@ -646,6 +707,21 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
   document.getElementById("infoBtn").addEventListener("click", (e) => {
     document.getElementById("legend").classList.toggle("open");
     e.currentTarget.classList.toggle("active");
+  });
+
+  document.getElementById("debugLogToggleBtn").addEventListener("click", () => {
+    document.getElementById("debugLogPanel").classList.add("show");
+    renderDebugLog();
+  });
+  document.getElementById("debugLogCloseBtn").addEventListener("click", () => {
+    document.getElementById("debugLogPanel").classList.remove("show");
+  });
+  document.getElementById("debugLogCopyBtn").addEventListener("click", () => {
+    navigator.clipboard.writeText(DEBUG_LOGS.join("\n")).then(() => {
+      const btn = document.getElementById("debugLogCopyBtn");
+      btn.textContent = "✅ コピーした";
+      setTimeout(() => (btn.textContent = "📋 コピー"), 1500);
+    });
   });
 
   /* ============================================================
