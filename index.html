@@ -387,6 +387,13 @@ function renderDebugLog() {
   flyHome(2);
   document.getElementById("homeBtn").addEventListener("click", () => flyHome(1.5));
 
+  // 基準地点（施設のデフォルト位置）の高さを起動時に取得しておく。
+  // 個別の木・雑草で高さ取得が何度リトライしても失敗した時の、最終手段の代用値として使う
+  groundHeightAt(PLANT_DEFAULT_CENTER.lat, PLANT_DEFAULT_CENTER.lon).then((h) => {
+    REFERENCE_GROUND_HEIGHT = h;
+    logDebug(`基準地点の高さを取得: ${h.toFixed(1)}m`);
+  });
+
   /* ============================================================
      📷 カメラ情報パネル（デバッグ用）
      見やすいアングルを手で探して「コピー」を押すと、INITIAL_CAMERA用の
@@ -438,29 +445,60 @@ function renderDebugLog() {
      ============================================================ */
   const treeEntities = new Map(); // id -> {visitorId, count, comments...}
   const sscc = viewer.scene.screenSpaceCameraController;
+  function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
-  async function groundHeightAt(lat, lon) {
-    // ①まず「建物3Dタイルも含めた高さ」を試す（建物があれば屋根の上を返してくれる）
+  // 何もかも失敗した時の最終手段。起動後、実際に取得できた基準地点の高さで上書きされる
+  let REFERENCE_GROUND_HEIGHT = 100;
+
+  const REASONABLE_MIN = -50, REASONABLE_MAX = 3000;
+  function isReasonableHeight(h) {
+    return typeof h === "number" && !isNaN(h) && h > REASONABLE_MIN && h < REASONABLE_MAX;
+  }
+
+  // 高さの取得を1回だけ試す（建物込み→地形のみ、の順）。ダメならnullを返す
+  async function trySampleHeightOnce(lat, lon) {
     try {
       const sampled = await viewer.scene.sampleHeightMostDetailed([Cesium.Cartographic.fromDegrees(lon, lat)]);
-      if (sampled[0] && typeof sampled[0].height === "number" && !isNaN(sampled[0].height)) {
-        return sampled[0].height;
+      if (isReasonableHeight(sampled[0] && sampled[0].height)) return sampled[0].height;
+      if (sampled[0] && !isReasonableHeight(sampled[0].height)) {
+        logDebug(`⚠️建物込み高さが異常値: lat=${lat} lon=${lon} height=${sampled[0].height}`);
       }
     } catch (e) {
-      console.warn("建物込みの高さサンプリング失敗、地形のみで再試行:", e.message);
+      console.warn("建物込みの高さサンプリング失敗:", e.message);
     }
-    // ②ダメなら地形（建物は無視）だけで試す
     try {
       const sampled2 = await Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, [Cesium.Cartographic.fromDegrees(lon, lat)]);
-      if (sampled2[0] && typeof sampled2[0].height === "number" && !isNaN(sampled2[0].height)) {
-        return sampled2[0].height;
+      if (isReasonableHeight(sampled2[0] && sampled2[0].height)) return sampled2[0].height;
+      if (sampled2[0] && !isReasonableHeight(sampled2[0].height)) {
+        logDebug(`⚠️地形高さも異常値: lat=${lat} lon=${lon} height=${sampled2[0].height}`);
       }
     } catch (e) {
       console.warn("地形サンプリングも失敗:", e.message);
     }
-    // ③最後の手段：今読み込まれてる範囲から取る
+    return null;
+  }
+
+  // 何回かリトライしてから諦める（一時的な失敗の可能性が高いため）
+  async function groundHeightAt(lat, lon) {
+    const MAX_TRIES = 4;
+    for (let attempt = 1; attempt <= MAX_TRIES; attempt++) {
+      const h = await trySampleHeightOnce(lat, lon);
+      if (h !== null) {
+        if (attempt > 1) logDebug(`高さ取得、${attempt}回目のリトライで成功: lat=${lat} lon=${lon} height=${h.toFixed(1)}`);
+        return h;
+      }
+      if (attempt < MAX_TRIES) {
+        logDebug(`⚠️高さ取得失敗（${attempt}/${MAX_TRIES}回目）、少し待って再挑戦: lat=${lat} lon=${lon}`);
+        await sleep(500);
+      }
+    }
+    // 今読み込まれてる範囲から取得できないか、最後にもう一度だけ試す
     const h = viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(lon, lat));
-    return h !== undefined ? h : 0;
+    if (isReasonableHeight(h)) return h;
+    // 完全に諦める場合は、0mではなく「実際に取得できた基準地点の高さ」で代用する
+    // （0mだと海抜0扱いになり、結局別の場所に埋まってしまうだけなので）
+    logDebug(`⚠️${MAX_TRIES}回リトライしても失敗。基準地点の高さ(${REFERENCE_GROUND_HEIGHT.toFixed(1)}m)で代用: lat=${lat} lon=${lon}`);
+    return REFERENCE_GROUND_HEIGHT;
   }
 
   // ── デバッグ用：植えた場所に光の柱を立てる ──────────────────
