@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-17T10:03:52.870Z",
+  "lastUpdated": "2026-07-21T00:23:35.128Z",
   "responses": [
     {
       "id": "r_ad663065",
@@ -83,6 +83,18 @@
       "latitude": 35.451854,
       "longitude": 139.525858,
       "revisit": "機会があれば",
+      "goodPoints": [
+        "静かに作業・勉強ができた"
+      ]
+    },
+    {
+      "id": "r_230426c4",
+      "timestamp": "2026-07-21T00:23:34.666Z",
+      "date": "2026-07-21",
+      "visitorId": "v_6aa78fdbqtr",
+      "latitude": 35.451503,
+      "longitude": 139.525561,
+      "revisit": "はい、ぜひ！",
       "goodPoints": [
         "静かに作業・勉強ができた"
       ]
