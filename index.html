@@ -317,6 +317,10 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
   }
   viewer.scene.globe.enableLighting = true;
 
+  // Cesium標準の「ダブルクリックしたエンティティを追跡してカメラが固定される」機能は
+  // 今回のアプリには不要（誤動作の元になるので）無効化しておく
+  viewer.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+
   const tilesets = [];
   for (const url of BUILDING_URLS) {
     try {
@@ -327,6 +331,7 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
   }
 
   function flyHome(duration) {
+    viewer.trackedEntity = undefined; // 何かを追跡した状態のままにならないよう念のため解除
     viewer.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(INITIAL_CAMERA.lon, INITIAL_CAMERA.lat, INITIAL_CAMERA.height),
       orientation: { heading: Cesium.Math.toRadians(INITIAL_CAMERA.heading), pitch: Cesium.Math.toRadians(INITIAL_CAMERA.pitch), roll: 0 },
@@ -393,23 +398,33 @@ Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
   const sscc = viewer.scene.screenSpaceCameraController;
 
   async function groundHeightAt(lat, lon) {
-    const carto = Cesium.Cartographic.fromDegrees(lon, lat);
+    // ①まず「建物3Dタイルも含めた高さ」を試す（建物があれば屋根の上を返してくれる）
     try {
-      const sampled = await Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, [carto]);
+      const sampled = await viewer.scene.sampleHeightMostDetailed([Cesium.Cartographic.fromDegrees(lon, lat)]);
       if (sampled[0] && typeof sampled[0].height === "number" && !isNaN(sampled[0].height)) {
         return sampled[0].height;
       }
     } catch (e) {
-      console.warn("地形サンプリング失敗:", e.message);
+      console.warn("建物込みの高さサンプリング失敗、地形のみで再試行:", e.message);
     }
-    const h = viewer.scene.globe.getHeight(carto);
+    // ②ダメなら地形（建物は無視）だけで試す
+    try {
+      const sampled2 = await Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, [Cesium.Cartographic.fromDegrees(lon, lat)]);
+      if (sampled2[0] && typeof sampled2[0].height === "number" && !isNaN(sampled2[0].height)) {
+        return sampled2[0].height;
+      }
+    } catch (e) {
+      console.warn("地形サンプリングも失敗:", e.message);
+    }
+    // ③最後の手段：今読み込まれてる範囲から取る
+    const h = viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(lon, lat));
     return h !== undefined ? h : 0;
   }
 
   // ── デバッグ用：植えた場所に光の柱を立てる ──────────────────
   // 木や雑草が「実は埋まってるだけ」なのか「そもそも作られてない」のかを
   // 見分けるための目印。原因が分かったら DEBUG_PILLARS を false にすればOK。
-  const DEBUG_PILLARS = false; // 木・雑草が正しい位置に出ることを確認できたのでOFF
+  const DEBUG_PILLARS = false; // 直ったことを確認できたのでOFF
   function addDebugPillar(lat, lon, groundH, colorHex) {
     if (!DEBUG_PILLARS) return;
     viewer.entities.add({
