@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-21T00:23:35.128Z",
+  "lastUpdated": "2026-07-21T07:40:17.044Z",
   "responses": [
     {
       "id": "r_ad663065",
@@ -97,6 +97,18 @@
       "revisit": "はい、ぜひ！",
       "goodPoints": [
         "静かに作業・勉強ができた"
+      ]
+    },
+    {
+      "id": "r_6f06f638",
+      "timestamp": "2026-07-21T07:40:16.582Z",
+      "date": "2026-07-21",
+      "visitorId": "v_9a04be793zo",
+      "latitude": 35.451631,
+      "longitude": 139.525901,
+      "revisit": "わからない",
+      "goodPoints": [
+        "飲食しながらのんびりできた"
       ]
     }
   ]
